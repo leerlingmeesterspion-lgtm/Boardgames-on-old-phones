@@ -22,6 +22,18 @@ const files = "abcdefgh";
 const ranks = "12345678";
 let selectedSquare = null;
 
+function getMoveSummary(move) {
+  return {
+    color: move.color === "w" ? "White" : "Black",
+    from: move.from,
+    to: move.to,
+    capturedPiece: move.captured ? pieceNames[move.captured] : null,
+    capturedColor: move.captured
+      ? (move.color === "w" ? "Black" : "White")
+      : null
+  };
+}
+
 function getBoardState() {
   const board = {};
 
@@ -35,9 +47,14 @@ function getBoardState() {
     }
   }
 
+  const history = chess.history({ verbose: true });
+
   return {
     board,
-    selectedSquare
+    selectedSquare,
+    turn: chess.turn() === "w" ? "White" : "Black",
+    lastMove: history.length > 0 ? getMoveSummary(history[history.length - 1]) : null,
+    canUndo: history.length > 0
   };
 }
 
@@ -142,6 +159,23 @@ io.on("connection", (socket) => {
     device.squares = squares;
     io.to(deviceId).emit("squares-update", device.squares);
     broadcastDeviceNames();
+  });
+
+  socket.on("undo-move", () => {
+    if (socket.data.deviceName) {
+      console.warn(`Ignored undo request from board device ${socket.id}`);
+      return;
+    }
+
+    const undoneMove = chess.undo();
+    if (!undoneMove) {
+      console.warn(`Ignored undo request with no moves from ${socket.id}`);
+      return;
+    }
+
+    selectedSquare = null;
+    console.log(`Move undone: ${undoneMove.san}`);
+    broadcastBoardState();
   });
 
   socket.on("square-tapped", (square) => {

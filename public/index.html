@@ -5,27 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Modular Chess Server</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        height: var(--viewport-height, 100vh);
+        overflow: hidden;
+        padding: 0.5rem;
+      }
+
+      #status,
+      #turn-status,
+      #last-move {
+        flex: 0 0 auto;
+        margin: 0;
+        text-align: center;
+      }
+
       #identify-name {
         font-size: clamp(4rem, 20vw, 14rem);
+        margin: auto 0;
         text-align: center;
       }
 
       #assigned-squares {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
+        align-content: center;
+        display: grid;
+        flex: 1 1 0;
+        gap: 0.5rem;
+        grid-template-columns: repeat(var(--columns, 1), var(--square-size, 7rem));
+        grid-template-rows: repeat(var(--rows, 1), var(--square-size, 7rem));
+        justify-content: center;
+        min-height: 0;
+        width: 100%;
       }
 
       .assigned-square {
         align-items: center;
+        box-sizing: border-box;
+        cursor: pointer;
         display: flex;
         flex-direction: column;
         font-family: inherit;
-        height: 7rem;
+        height: var(--square-size, 7rem);
         justify-content: center;
+        min-height: 0;
+        min-width: 0;
         padding: 0;
-        width: 7rem;
-        cursor: pointer;
+        touch-action: manipulation;
+        width: var(--square-size, 7rem);
       }
 
       .assigned-square.light {
@@ -46,12 +84,12 @@
       }
 
       .piece {
-        font-size: 4rem;
+        font-size: var(--piece-size, 4rem);
         line-height: 1;
       }
 
       .square-coordinate {
-        font-size: 1rem;
+        font-size: var(--coordinate-size, 1rem);
       }
 
       body.identifying {
@@ -78,6 +116,8 @@
   </head>
   <body>
     <p id="status">Connecting to the server...</p>
+    <p id="turn-status">Waiting for the board...</p>
+    <p id="last-move">No moves yet.</p>
     <h1 id="identify-name" hidden></h1>
     <div id="assigned-squares"></div>
 
@@ -88,6 +128,8 @@
       const animals = ["FOX", "PANDA", "TIGER", "OWL", "LION", "KOALA", "OTTER", "EAGLE", "WOLF", "BEAR"];
       const socket = io();
       const status = document.getElementById("status");
+      const turnStatus = document.getElementById("turn-status");
+      const lastMoveStatus = document.getElementById("last-move");
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
       const pieceSymbols = {
@@ -126,14 +168,65 @@
         return sum % 2 !== 0 ? "dark" : "light";
       }
 
+      function getAssignedSquareBounds() {
+        if (assignedSquareNames.length === 0) {
+          return null;
+        }
+
+        const fileIndexes = assignedSquareNames.map((square) => square.charCodeAt(0) - "a".charCodeAt(0));
+        const ranks = assignedSquareNames.map((square) => Number(square.charAt(1)));
+        const minFile = Math.min(...fileIndexes);
+        const maxFile = Math.max(...fileIndexes);
+        const minRank = Math.min(...ranks);
+        const maxRank = Math.max(...ranks);
+
+        return {
+          minFile,
+          maxRank,
+          columns: maxFile - minFile + 1,
+          rows: maxRank - minRank + 1
+        };
+      }
+
+      function fitAssignedSquares() {
+        const bounds = getAssignedSquareBounds();
+        if (!bounds) {
+          return;
+        }
+
+        const availableWidth = assignedSquares.clientWidth;
+        const availableHeight = assignedSquares.clientHeight;
+        const gap = parseFloat(window.getComputedStyle(assignedSquares).gap) || 0;
+        const widthPerSquare = (availableWidth - gap * (bounds.columns - 1)) / bounds.columns;
+        const heightPerSquare = (availableHeight - gap * (bounds.rows - 1)) / bounds.rows;
+        const size = Math.max(0, Math.floor(Math.min(widthPerSquare, heightPerSquare)));
+
+        assignedSquares.style.setProperty("--columns", bounds.columns);
+        assignedSquares.style.setProperty("--rows", bounds.rows);
+        assignedSquares.style.setProperty("--square-size", `${size}px`);
+        assignedSquares.style.setProperty("--piece-size", `${size * 0.6}px`);
+        assignedSquares.style.setProperty("--coordinate-size", `${Math.min(20, Math.max(12, size * 0.1))}px`);
+      }
+
+      function updateViewportLayout() {
+        const viewportHeight = window.visualViewport
+          ? window.visualViewport.height
+          : window.innerHeight;
+        document.documentElement.style.setProperty("--viewport-height", `${viewportHeight}px`);
+        fitAssignedSquares();
+      }
+
       function renderAssignedSquares() {
         assignedSquares.textContent = "";
+        const bounds = getAssignedSquareBounds();
 
         assignedSquareNames.forEach((square) => {
           const pieceName = boardState.board[square];
           const rectangle = document.createElement("button");
           rectangle.type = "button";
           rectangle.className = `assigned-square ${getSquareColor(square)}`;
+          rectangle.style.gridColumn = String(square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile + 1);
+          rectangle.style.gridRow = String(bounds.maxRank - Number(square.charAt(1)) + 1);
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
           if (boardState.selectedSquare === square) {
             rectangle.classList.add("selected");
@@ -154,6 +247,23 @@
           });
           assignedSquares.appendChild(rectangle);
         });
+
+        fitAssignedSquares();
+      }
+
+      function renderMoveStatus(state) {
+        turnStatus.textContent = `${state.turn} to move.`;
+        if (!state.lastMove) {
+          lastMoveStatus.textContent = "No moves yet.";
+          return;
+        }
+
+        const move = state.lastMove;
+        const description = `${move.color} moved ${move.from.toUpperCase()} to ${move.to.toUpperCase()}`;
+        const capture = move.capturedPiece
+          ? `, capturing a ${move.capturedColor.toLowerCase()} ${move.capturedPiece}`
+          : "";
+        lastMoveStatus.textContent = `${description}${capture}.`;
       }
 
       let deviceName = localStorage.getItem(storageKey);
@@ -176,6 +286,7 @@
 
       socket.on("board-update", (state) => {
         boardState = state;
+        renderMoveStatus(state);
         renderAssignedSquares();
       });
 
@@ -200,6 +311,12 @@
           identifyName.hidden = true;
         }, 5000);
       });
+
+      window.addEventListener("resize", updateViewportLayout);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", updateViewportLayout);
+      }
+      updateViewportLayout();
     </script>
   </body>
 </html>

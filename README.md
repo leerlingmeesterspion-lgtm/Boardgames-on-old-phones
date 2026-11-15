@@ -89,7 +89,7 @@ This is different from `io.emit(...)`, which broadcasts an event to every connec
 
 ## Assign chessboard squares
 
-Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square.
+Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative chessboard positions, centers them, and sizes them to fit its available screen space. The layout adjusts when the screen is resized or rotated.
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
 
@@ -97,4 +97,8 @@ The square configuration stays in server memory if a phone disconnects and recon
 
 The server starts with the standard chess position across all 64 squares. To try a cross-phone move, assign E2 to one connected phone and E4 to another in `/admin`, then tap the pawn on E2 and tap E4 on the other phone.
 
-The server asks `chess.js` whether a move is legal before changing its authoritative game state. If the move is legal, it broadcasts the new board to the phones and `/admin`; if not, the board stays unchanged. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.
+The server asks `chess.js` whether a move is legal before changing its authoritative game state. `chess.js` also enforces whose turn it is and removes a captured piece from the board. The phones and `/admin` show whose turn is next and describe the last move, including a capture.
+
+The **Revert last move** button on `/admin` uses `chess.js` to undo one move. It restores captured pieces and gives the turn back to the player who made the undone move. The button is disabled when there are no moves to undo.
+
+To try a capture, assign E2 and E4 to one phone, and D7 and D5 to another. Move E2 to E4, D7 to D5, then E4 to D5. The black pawn should disappear, and the pages should report that White captured it. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.

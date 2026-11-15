@@ -65,6 +65,9 @@
   <body>
     <h1>Connected board devices</h1>
     <p id="status">Connecting to the server...</p>
+    <p id="turn-status">Waiting for the board...</p>
+    <p id="last-move">No moves yet.</p>
+    <button id="undo-move" type="button" disabled>Revert last move</button>
     <h2>Server thinks physical board</h2>
     <div id="server-board" class="server-board" role="grid" aria-label="Server chessboard"></div>
     <ul id="devices">
@@ -75,6 +78,9 @@
     <script>
       const socket = io();
       const status = document.getElementById("status");
+      const turnStatus = document.getElementById("turn-status");
+      const lastMoveStatus = document.getElementById("last-move");
+      const undoMoveButton = document.getElementById("undo-move");
       const deviceList = document.getElementById("devices");
       const serverBoard = document.getElementById("server-board");
       const pieceSymbols = {
@@ -125,6 +131,25 @@
         }
       }
 
+      function renderMoveStatus(state) {
+        turnStatus.textContent = `${state.turn} to move.`;
+        if (!state.lastMove) {
+          lastMoveStatus.textContent = "No moves yet.";
+          return;
+        }
+
+        const move = state.lastMove;
+        const description = `${move.color} moved ${move.from.toUpperCase()} to ${move.to.toUpperCase()}`;
+        const capture = move.capturedPiece
+          ? `, capturing a ${move.capturedColor.toLowerCase()} ${move.capturedPiece}`
+          : "";
+        lastMoveStatus.textContent = `${description}${capture}.`;
+      }
+
+      undoMoveButton.addEventListener("click", () => {
+        socket.emit("undo-move");
+      });
+
       socket.on("connect", () => {
         status.textContent = "Connected to the server.";
       });
@@ -135,6 +160,8 @@
 
       socket.on("board-update", (state) => {
         renderBoard(state.board, state.selectedSquare);
+        renderMoveStatus(state);
+        undoMoveButton.disabled = !state.canUndo;
       });
 
       socket.on("devices-update", (devices) => {
