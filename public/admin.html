@@ -26,19 +26,31 @@
         status.textContent = "Disconnected from the server.";
       });
 
-      socket.on("devices-update", (deviceNames) => {
+      socket.on("devices-update", (devices) => {
         deviceList.textContent = "";
 
-        if (deviceNames.length === 0) {
+        if (devices.length === 0) {
           const item = document.createElement("li");
           item.textContent = "No devices connected.";
           deviceList.appendChild(item);
           return;
         }
 
-        deviceNames.forEach((deviceName) => {
+        devices.forEach((device) => {
           const item = document.createElement("li");
-          item.textContent = deviceName;
+
+          const name = document.createElement("span");
+          name.textContent = device.name;
+          item.appendChild(name);
+          item.appendChild(document.createTextNode(" "));
+
+          const identifyButton = document.createElement("button");
+          identifyButton.textContent = "Identify";
+          identifyButton.addEventListener("click", () => {
+            socket.emit("identify-device", device.id);
+          });
+          item.appendChild(identifyButton);
+
           deviceList.appendChild(item);
         });
       });

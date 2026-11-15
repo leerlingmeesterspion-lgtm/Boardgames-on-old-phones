@@ -80,3 +80,9 @@ Start the server and open `http://localhost:3000/admin` on the laptop. The page 
 The server keeps a `Map` from each Socket.IO connection ID to its friendly device name. When a device registers or disconnects, the server sends the current names to every connected browser with `io.emit("devices-update", names)`. When the admin page first connects, the server sends it the current list with `socket.emit`, so it does not have to wait for the next change.
 
 This list is kept in server memory, so it starts empty after the server restarts. Connected phones reconnect and register again automatically.
+
+## Identify one board device
+
+Each device row on `/admin` has an **Identify** button. Clicking it sends that device's Socket.IO connection ID to the server. The server uses `io.to(deviceId).emit("identify")` to send the event only to that phone. Its page shows the friendly name in large letters and flashes its background for five seconds.
+
+This is different from `io.emit(...)`, which broadcasts an event to every connected browser. The admin list includes connection IDs so the server can target one connection even if two devices happen to have the same friendly name.

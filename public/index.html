@@ -4,9 +4,37 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Modular Chess Server</title>
+    <style>
+      #identify-name {
+        font-size: clamp(4rem, 20vw, 14rem);
+        text-align: center;
+      }
+
+      body.identifying {
+        animation: identify-flash 1s ease-in-out infinite alternate;
+      }
+
+      @keyframes identify-flash {
+        from {
+          background-color: #ffeb3b;
+        }
+
+        to {
+          background-color: #fff;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        body.identifying {
+          animation: none;
+          background-color: #fff8cc;
+        }
+      }
+    </style>
   </head>
   <body>
     <p id="status">Connecting to the server...</p>
+    <h1 id="identify-name" hidden></h1>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -15,6 +43,8 @@
       const animals = ["FOX", "PANDA", "TIGER", "OWL", "LION", "KOALA", "OTTER", "EAGLE", "WOLF", "BEAR"];
       const socket = io();
       const status = document.getElementById("status");
+      const identifyName = document.getElementById("identify-name");
+      let identifyTimer;
 
       function chooseRandom(items) {
         return items[Math.floor(Math.random() * items.length)];
@@ -31,6 +61,20 @@
       socket.on("connect", () => {
         socket.emit("register-device", deviceName);
         status.textContent = `Connected as ${deviceName}`;
+      });
+
+      socket.on("identify", () => {
+        window.clearTimeout(identifyTimer);
+        document.body.classList.add("identifying");
+        status.hidden = true;
+        identifyName.textContent = deviceName;
+        identifyName.hidden = false;
+
+        identifyTimer = window.setTimeout(() => {
+          document.body.classList.remove("identifying");
+          status.hidden = false;
+          identifyName.hidden = true;
+        }, 5000);
       });
     </script>
   </body>
