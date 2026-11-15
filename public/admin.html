@@ -18,11 +18,55 @@
         padding: 0.25rem;
         text-align: center;
       }
+
+      .server-board {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 2px;
+        max-width: 32rem;
+        width: 100%;
+      }
+
+      .server-square {
+        align-items: center;
+        aspect-ratio: 1;
+        display: flex;
+        justify-content: center;
+        position: relative;
+      }
+
+      .server-square.light {
+        background-color: #f0d9b5;
+        color: #222;
+      }
+
+      .server-square.dark {
+        background-color: #769656;
+        color: #fff;
+      }
+
+      .server-square.selected {
+        outline: 3px solid #e6a700;
+        outline-offset: -3px;
+      }
+
+      .server-square-piece {
+        font-size: clamp(1.25rem, 5vw, 2.75rem);
+      }
+
+      .server-square-coordinate {
+        bottom: 0.1rem;
+        font-size: 0.6rem;
+        left: 0.15rem;
+        position: absolute;
+      }
     </style>
   </head>
   <body>
     <h1>Connected board devices</h1>
     <p id="status">Connecting to the server...</p>
+    <h2>Server thinks physical board</h2>
+    <div id="server-board" class="server-board" role="grid" aria-label="Server chessboard"></div>
     <ul id="devices">
       <li>Waiting for device list...</li>
     </ul>
@@ -32,6 +76,54 @@
       const socket = io();
       const status = document.getElementById("status");
       const deviceList = document.getElementById("devices");
+      const serverBoard = document.getElementById("server-board");
+      const pieceSymbols = {
+        "black-rook": "♜",
+        "black-knight": "♞",
+        "black-bishop": "♝",
+        "black-queen": "♛",
+        "black-king": "♚",
+        "black-pawn": "♟",
+        "white-rook": "♖",
+        "white-knight": "♘",
+        "white-bishop": "♗",
+        "white-queen": "♕",
+        "white-king": "♔",
+        "white-pawn": "♙"
+      };
+
+      function renderBoard(board, selectedSquare) {
+        serverBoard.textContent = "";
+        const files = "abcdefgh";
+        const ranks = "87654321";
+
+        for (const rank of ranks) {
+          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+            const file = files[fileIndex];
+            const square = `${file}${rank}`;
+            const pieceName = board[square];
+            const cell = document.createElement("div");
+            const color = (fileIndex + Number(rank)) % 2 === 1 ? "dark" : "light";
+            cell.className = `server-square ${color}`;
+            cell.setAttribute("role", "gridcell");
+            cell.setAttribute("aria-label", `${square}${pieceName ? `, ${pieceName}` : ""}`);
+            if (square === selectedSquare) {
+              cell.classList.add("selected");
+            }
+
+            const piece = document.createElement("span");
+            piece.className = "server-square-piece";
+            piece.textContent = pieceSymbols[pieceName] || "";
+            cell.appendChild(piece);
+
+            const coordinate = document.createElement("span");
+            coordinate.className = "server-square-coordinate";
+            coordinate.textContent = square;
+            cell.appendChild(coordinate);
+            serverBoard.appendChild(cell);
+          }
+        }
+      }
 
       socket.on("connect", () => {
         status.textContent = "Connected to the server.";
@@ -39,6 +131,10 @@
 
       socket.on("disconnect", () => {
         status.textContent = "Disconnected from the server.";
+      });
+
+      socket.on("board-update", (state) => {
+        renderBoard(state.board, state.selectedSquare);
       });
 
       socket.on("devices-update", (devices) => {

@@ -90,6 +90,20 @@
       const status = document.getElementById("status");
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
+      const pieceSymbols = {
+        "black-rook": "♜",
+        "black-knight": "♞",
+        "black-bishop": "♝",
+        "black-queen": "♛",
+        "black-king": "♚",
+        "black-pawn": "♟",
+        "white-rook": "♖",
+        "white-knight": "♘",
+        "white-bishop": "♗",
+        "white-queen": "♕",
+        "white-king": "♔",
+        "white-pawn": "♙"
+      };
       let assignedSquareNames = [];
       let boardState = { board: {}, selectedSquare: null };
       let identifyTimer;
@@ -126,7 +140,7 @@
 
           const piece = document.createElement("span");
           piece.className = "piece";
-          piece.textContent = pieceName === "white-pawn" ? "♙" : "";
+          piece.textContent = pieceSymbols[pieceName] || "";
           rectangle.appendChild(piece);
 
           const coordinate = document.createElement("span");

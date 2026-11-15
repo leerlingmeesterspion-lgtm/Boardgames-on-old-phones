@@ -11,12 +11,22 @@ const devices = new Map();
 const board = {};
 let selectedSquare = null;
 
-for (const file of "abcdefgh") {
+const files = "abcdefgh";
+const backRankPieces = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"];
+
+for (const file of files) {
   for (const rank of "12345678") {
     board[`${file}${rank}`] = null;
   }
 }
-board.a1 = "white-pawn";
+
+for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+  const file = files[fileIndex];
+  board[`${file}8`] = `black-${backRankPieces[fileIndex]}`;
+  board[`${file}7`] = "black-pawn";
+  board[`${file}2`] = "white-pawn";
+  board[`${file}1`] = `white-${backRankPieces[fileIndex]}`;
+}
 
 function getBoardState() {
   return {
