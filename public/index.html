@@ -38,6 +38,31 @@
         text-align: center;
       }
 
+      .game-result {
+        align-items: center;
+        background-color: rgb(0 0 0 / 85%);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        font-size: clamp(3rem, 15vw, 9rem);
+        font-weight: bold;
+        inset: 0;
+        justify-content: center;
+        line-height: 1.1;
+        padding: 1rem;
+        position: fixed;
+        text-align: center;
+        z-index: 10;
+      }
+
+      .game-result[hidden] {
+        display: none;
+      }
+
+      .game-result p {
+        margin: 0.2em 0;
+      }
+
       #assigned-squares {
         align-content: center;
         display: grid;
@@ -120,6 +145,10 @@
     <p id="last-move">No moves yet.</p>
     <h1 id="identify-name" hidden></h1>
     <div id="assigned-squares"></div>
+    <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
+      <p>CHECKMATE</p>
+      <p id="game-result-winner"></p>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -132,6 +161,8 @@
       const lastMoveStatus = document.getElementById("last-move");
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
+      const gameResult = document.getElementById("game-result");
+      const gameResultWinner = document.getElementById("game-result-winner");
       const pieceSymbols = {
         "black-rook": "♜",
         "black-knight": "♞",
@@ -266,6 +297,13 @@
         lastMoveStatus.textContent = `${description}${capture}.`;
       }
 
+      function renderGameResult(state) {
+        gameResult.hidden = !state.checkmateWinner;
+        if (state.checkmateWinner) {
+          gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
+        }
+      }
+
       let deviceName = localStorage.getItem(storageKey);
 
       if (!deviceName) {
@@ -287,6 +325,7 @@
       socket.on("board-update", (state) => {
         boardState = state;
         renderMoveStatus(state);
+        renderGameResult(state);
         renderAssignedSquares();
       });
 

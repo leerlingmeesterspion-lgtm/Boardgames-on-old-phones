@@ -54,7 +54,10 @@ function getBoardState() {
     selectedSquare,
     turn: chess.turn() === "w" ? "White" : "Black",
     lastMove: history.length > 0 ? getMoveSummary(history[history.length - 1]) : null,
-    canUndo: history.length > 0
+    canUndo: history.length > 0,
+    checkmateWinner: chess.isCheckmate()
+      ? (chess.turn() === "w" ? "Black" : "White")
+      : null
   };
 }
 

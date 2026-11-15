@@ -60,6 +60,31 @@
         left: 0.15rem;
         position: absolute;
       }
+
+      .game-result {
+        align-items: center;
+        background-color: rgb(0 0 0 / 85%);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        font-size: clamp(3rem, 15vw, 9rem);
+        font-weight: bold;
+        inset: 0;
+        justify-content: center;
+        line-height: 1.1;
+        padding: 1rem;
+        position: fixed;
+        text-align: center;
+        z-index: 10;
+      }
+
+      .game-result[hidden] {
+        display: none;
+      }
+
+      .game-result p {
+        margin: 0.2em 0;
+      }
     </style>
   </head>
   <body>
@@ -70,6 +95,10 @@
     <button id="undo-move" type="button" disabled>Revert last move</button>
     <h2>Server thinks physical board</h2>
     <div id="server-board" class="server-board" role="grid" aria-label="Server chessboard"></div>
+    <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
+      <p>CHECKMATE</p>
+      <p id="game-result-winner"></p>
+    </div>
     <ul id="devices">
       <li>Waiting for device list...</li>
     </ul>
@@ -83,6 +112,8 @@
       const undoMoveButton = document.getElementById("undo-move");
       const deviceList = document.getElementById("devices");
       const serverBoard = document.getElementById("server-board");
+      const gameResult = document.getElementById("game-result");
+      const gameResultWinner = document.getElementById("game-result-winner");
       const pieceSymbols = {
         "black-rook": "♜",
         "black-knight": "♞",
@@ -146,6 +177,13 @@
         lastMoveStatus.textContent = `${description}${capture}.`;
       }
 
+      function renderGameResult(state) {
+        gameResult.hidden = !state.checkmateWinner;
+        if (state.checkmateWinner) {
+          gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
+        }
+      }
+
       undoMoveButton.addEventListener("click", () => {
         socket.emit("undo-move");
       });
@@ -161,6 +199,7 @@
       socket.on("board-update", (state) => {
         renderBoard(state.board, state.selectedSquare);
         renderMoveStatus(state);
+        renderGameResult(state);
         undoMoveButton.disabled = !state.canUndo;
       });
 
