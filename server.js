@@ -108,10 +108,19 @@ function broadcastDeviceNames() {
   io.emit("devices-update", getConnectedDevices());
 }
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  setHeaders(response, filePath) {
+    if (path.extname(filePath) === ".html") {
+      response.setHeader("Cache-Control", "no-store");
+    }
+  }
+}));
 
 app.get("/admin", (request, response) => {
-  response.sendFile(path.join(__dirname, "public", "admin.html"));
+  response.setHeader("Cache-Control", "no-store");
+  response.sendFile(path.join(__dirname, "public", "admin.html"), {
+    cacheControl: false
+  });
 });
 
 io.on("connection", (socket) => {

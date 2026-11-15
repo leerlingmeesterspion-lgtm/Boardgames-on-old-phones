@@ -90,6 +90,10 @@
         width: 100%;
       }
 
+      #assigned-squares.black-side {
+        transform: rotate(180deg);
+      }
+
       .assigned-square {
         align-items: center;
         box-sizing: border-box;
@@ -102,6 +106,7 @@
         min-height: 0;
         min-width: 0;
         padding: 0;
+        position: relative;
         touch-action: manipulation;
         width: var(--square-size, 7rem);
       }
@@ -123,26 +128,37 @@
         outline-offset: 2px;
       }
 
-      .assigned-square.black-side {
-        transform: rotate(180deg);
-      }
-
       .piece {
         font-size: var(--piece-size, 4rem);
+        font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", sans-serif;
         line-height: 1;
       }
 
       .piece.black {
-        color: #111;
+        color: #000;
+        -webkit-text-fill-color: #000;
+        transform: rotate(180deg);
       }
 
       .piece.white {
         color: #fff;
+        -webkit-text-fill-color: #fff;
         -webkit-text-stroke: 1px #222;
       }
 
       .square-coordinate {
+        bottom: 0.1rem;
         font-size: var(--coordinate-size, 1rem);
+        left: 0.15rem;
+        position: absolute;
+      }
+
+      .square-coordinate-upside-down {
+        bottom: auto;
+        left: auto;
+        right: 0.15rem;
+        top: 0.1rem;
+        transform: rotate(180deg);
       }
 
       body.identifying {
@@ -204,12 +220,12 @@
         "black-queen": "♛",
         "black-king": "♚",
         "black-pawn": "♟",
-        "white-rook": "♜",
-        "white-knight": "♞",
-        "white-bishop": "♝",
-        "white-queen": "♛",
-        "white-king": "♚",
-        "white-pawn": "♟"
+        "white-rook": "♖︎",
+        "white-knight": "♘︎",
+        "white-bishop": "♗︎",
+        "white-queen": "♕︎",
+        "white-king": "♔︎",
+        "white-pawn": "♙︎"
       };
       let assignedSquareNames = [];
       let boardState = { board: {}, selectedSquare: null };
@@ -366,23 +382,18 @@
       function renderAssignedSquares() {
         assignedSquares.textContent = "";
         const bounds = getAssignedSquareBounds();
+        assignedSquares.classList.toggle("black-side", bounds ? bounds.blackSide : false);
 
         assignedSquareNames.forEach((square) => {
           const rectangle = document.createElement("button");
           rectangle.type = "button";
           rectangle.className = `assigned-square ${getSquareColor(square)}`;
           rectangle.dataset.square = square;
-          if (bounds.blackSide) {
-            rectangle.classList.add("black-side");
-          }
+          rectangle.setAttribute("aria-label", `${square.toUpperCase()}${boardState.board[square] ? `, ${boardState.board[square]}` : ""}`);
           const filePosition = square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile;
           const rankPosition = bounds.maxRank - Number(square.charAt(1));
-          rectangle.style.gridColumn = String(
-            (bounds.blackSide ? bounds.columns - filePosition - 1 : filePosition) + 1
-          );
-          rectangle.style.gridRow = String(
-            (bounds.blackSide ? bounds.rows - rankPosition - 1 : rankPosition) + 1
-          );
+          rectangle.style.gridColumn = String(filePosition + 1);
+          rectangle.style.gridRow = String(rankPosition + 1);
 
           const piece = document.createElement("span");
           piece.className = "piece";
@@ -392,6 +403,11 @@
           coordinate.className = "square-coordinate";
           coordinate.textContent = square.toUpperCase();
           rectangle.appendChild(coordinate);
+
+          const upsideDownCoordinate = document.createElement("span");
+          upsideDownCoordinate.className = "square-coordinate square-coordinate-upside-down";
+          upsideDownCoordinate.textContent = square.toUpperCase();
+          rectangle.appendChild(upsideDownCoordinate);
 
           assignedSquares.appendChild(rectangle);
         });

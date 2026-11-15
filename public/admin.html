@@ -27,6 +27,10 @@
         width: 100%;
       }
 
+      .server-board.black-side {
+        transform: rotate(180deg);
+      }
+
       .server-square {
         align-items: center;
         aspect-ratio: 1;
@@ -51,16 +55,19 @@
       }
 
       .server-square-piece {
+        color: #000;
         font-size: clamp(1.25rem, 5vw, 2.75rem);
+        font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", sans-serif;
+        -webkit-text-fill-color: #000;
       }
 
       .server-square-piece.black {
-        color: #111;
+        filter: brightness(0);
+        transform: rotate(180deg);
       }
 
       .server-square-piece.white {
-        color: #fff;
-        -webkit-text-stroke: 1px #222;
+        filter: brightness(0) invert(1) drop-shadow(0 0 1px #222);
       }
 
       .server-square-coordinate {
@@ -68,6 +75,14 @@
         font-size: 0.6rem;
         left: 0.15rem;
         position: absolute;
+      }
+
+      .server-square-coordinate-upside-down {
+        bottom: auto;
+        left: auto;
+        right: 0.15rem;
+        top: 0.1rem;
+        transform: rotate(180deg);
       }
 
       .game-result {
@@ -103,6 +118,7 @@
     <p id="last-move">No moves yet.</p>
     <button id="undo-move" type="button" disabled>Revert last move</button>
     <h2>Server thinks physical board</h2>
+    <button id="flip-board" type="button" aria-pressed="false">Flip board for Black</button>
     <div id="server-board" class="server-board" role="grid" aria-label="Server chessboard"></div>
     <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
       <p>CHECKMATE</p>
@@ -123,6 +139,8 @@
       const serverBoard = document.getElementById("server-board");
       const gameResult = document.getElementById("game-result");
       const gameResultWinner = document.getElementById("game-result-winner");
+      const flipBoardButton = document.getElementById("flip-board");
+      const boardSquares = new Map();
       const pieceSymbols = {
         "black-rook": "♜",
         "black-knight": "♞",
@@ -139,35 +157,45 @@
       };
 
       function renderBoard(board, selectedSquare) {
-        serverBoard.textContent = "";
-        const files = "abcdefgh";
-        const ranks = "87654321";
+        if (boardSquares.size === 0) {
+          const files = "abcdefgh";
+          const ranks = "87654321";
 
-        for (const rank of ranks) {
-          for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-            const file = files[fileIndex];
-            const square = `${file}${rank}`;
-            const pieceName = board[square];
-            const cell = document.createElement("div");
-            const color = (fileIndex + Number(rank)) % 2 === 1 ? "dark" : "light";
-            cell.className = `server-square ${color}`;
-            cell.setAttribute("role", "gridcell");
-            cell.setAttribute("aria-label", `${square}${pieceName ? `, ${pieceName}` : ""}`);
-            if (square === selectedSquare) {
-              cell.classList.add("selected");
+          for (const rank of ranks) {
+            for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+              const file = files[fileIndex];
+              const square = `${file}${rank}`;
+              const cell = document.createElement("div");
+              const color = (fileIndex + Number(rank)) % 2 === 1 ? "dark" : "light";
+              cell.className = `server-square ${color}`;
+              cell.setAttribute("role", "gridcell");
+
+              const piece = document.createElement("span");
+              piece.className = "server-square-piece";
+              cell.appendChild(piece);
+
+              const coordinate = document.createElement("span");
+              coordinate.className = "server-square-coordinate";
+              coordinate.textContent = square;
+              cell.appendChild(coordinate);
+
+              const upsideDownCoordinate = document.createElement("span");
+              upsideDownCoordinate.className = "server-square-coordinate server-square-coordinate-upside-down";
+              upsideDownCoordinate.textContent = square;
+              cell.appendChild(upsideDownCoordinate);
+
+              boardSquares.set(square, { cell, piece });
+              serverBoard.appendChild(cell);
             }
-
-            const piece = document.createElement("span");
-            piece.className = `server-square-piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
-            piece.textContent = pieceSymbols[pieceName] || "";
-            cell.appendChild(piece);
-
-            const coordinate = document.createElement("span");
-            coordinate.className = "server-square-coordinate";
-            coordinate.textContent = square;
-            cell.appendChild(coordinate);
-            serverBoard.appendChild(cell);
           }
+        }
+
+        for (const [square, elements] of boardSquares) {
+          const pieceName = board[square];
+          elements.cell.setAttribute("aria-label", `${square}${pieceName ? `, ${pieceName}` : ""}`);
+          elements.cell.classList.toggle("selected", square === selectedSquare);
+          elements.piece.className = `server-square-piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
+          elements.piece.textContent = pieceSymbols[pieceName] || "";
         }
       }
 
@@ -195,6 +223,12 @@
 
       undoMoveButton.addEventListener("click", () => {
         socket.emit("undo-move");
+      });
+
+      flipBoardButton.addEventListener("click", () => {
+        const flipped = serverBoard.classList.toggle("black-side");
+        flipBoardButton.setAttribute("aria-pressed", String(flipped));
+        flipBoardButton.textContent = flipped ? "Show board for White" : "Flip board for Black";
       });
 
       socket.on("connect", () => {
