@@ -114,4 +114,6 @@ The **Revert last move** button on `/admin` uses `chess.js` to undo one move. It
 
 When `chess.js` detects checkmate, `/admin` and all connected phone/tablet pages show a large winner message. Reverting the checkmating move removes that message.
 
+The admin page also has **Black resigns** and **White resigns** buttons beside **Revert last move**. Selecting one ends the game and shows who resigned and who wins on the admin and all connected phone/tablet pages.
+
 To try a capture, assign E2 and E4 to one phone, and D7 and D5 to another. Move E2 to E4, D7 to D5, then E4 to D5. The black pawn should disappear, and the pages should report that White captured it. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.

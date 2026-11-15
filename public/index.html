@@ -194,7 +194,7 @@
     <h1 id="identify-name" hidden></h1>
     <div id="assigned-squares"></div>
     <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
-      <p>CHECKMATE</p>
+      <p id="game-result-heading">CHECKMATE</p>
       <p id="game-result-winner"></p>
     </div>
 
@@ -212,6 +212,7 @@
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
       const gameResult = document.getElementById("game-result");
+      const gameResultHeading = document.getElementById("game-result-heading");
       const gameResultWinner = document.getElementById("game-result-winner");
       const pieceSymbols = {
         "black-rook": "♜",
@@ -432,8 +433,12 @@
       }
 
       function renderGameResult(state) {
-        gameResult.hidden = !state.checkmateWinner;
-        if (state.checkmateWinner) {
+        gameResult.hidden = !state.checkmateWinner && !state.resignation;
+        if (state.resignation) {
+          gameResultHeading.textContent = `${state.resignation.resigned.toUpperCase()} RESIGNS`;
+          gameResultWinner.textContent = `${state.resignation.winner.toUpperCase()} WINS`;
+        } else if (state.checkmateWinner) {
+          gameResultHeading.textContent = "CHECKMATE";
           gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
         }
       }

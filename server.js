@@ -21,6 +21,7 @@ const pieceNames = {
 const files = "abcdefgh";
 const ranks = "12345678";
 let selectedSquare = null;
+let resignation = null;
 
 function getMoveSummary(move) {
   return {
@@ -57,7 +58,8 @@ function getBoardState() {
     canUndo: history.length > 0,
     checkmateWinner: chess.isCheckmate()
       ? (chess.turn() === "w" ? "Black" : "White")
-      : null
+      : null,
+    resignation
   };
 }
 
@@ -174,6 +176,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("undo-move", () => {
+    if (resignation) {
+      console.warn(`Ignored undo request after resignation from ${socket.id}`);
+      return;
+    }
+
     if (socket.data.deviceName) {
       console.warn(`Ignored undo request from board device ${socket.id}`);
       return;
@@ -190,9 +197,28 @@ io.on("connection", (socket) => {
     broadcastBoardState();
   });
 
+  socket.on("resign", (color) => {
+    if ((color !== "White" && color !== "Black") || resignation || chess.isGameOver()) {
+      console.warn(`Ignored invalid resignation request from ${socket.id}`);
+      return;
+    }
+
+    resignation = {
+      resigned: color,
+      winner: color === "White" ? "Black" : "White"
+    };
+    console.log(`${resignation.resigned} resigns; ${resignation.winner} wins`);
+    broadcastBoardState();
+  });
+
   socket.on("square-tapped", (square) => {
     const deviceName = socket.data.deviceName;
     const device = deviceName ? devices.get(deviceName) : undefined;
+    if (resignation) {
+      console.warn(`Ignored square tap after resignation from ${socket.id}`);
+      return;
+    }
+
     if (!isValidSquare(square) || !device || device.socketId !== socket.id || !device.squares.includes(square)) {
       console.warn(`Ignored square tap from unassigned device ${socket.id}`);
       return;

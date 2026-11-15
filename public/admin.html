@@ -85,6 +85,12 @@
         transform: rotate(180deg);
       }
 
+      .game-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
       .game-result {
         align-items: center;
         background-color: rgb(0 0 0 / 85%);
@@ -116,12 +122,16 @@
     <p id="status">Connecting to the server...</p>
     <p id="turn-status">Waiting for the board...</p>
     <p id="last-move">No moves yet.</p>
-    <button id="undo-move" type="button" disabled>Revert last move</button>
+    <div class="game-controls">
+      <button id="undo-move" type="button" disabled>Revert last move</button>
+      <button id="black-resigns" type="button" disabled>Black resigns</button>
+      <button id="white-resigns" type="button" disabled>White resigns</button>
+    </div>
     <h2>Server thinks physical board</h2>
     <button id="flip-board" type="button" aria-pressed="false">Flip board for Black</button>
     <div id="server-board" class="server-board" role="grid" aria-label="Server chessboard"></div>
     <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
-      <p>CHECKMATE</p>
+      <p id="game-result-heading">CHECKMATE</p>
       <p id="game-result-winner"></p>
     </div>
     <ul id="devices">
@@ -138,8 +148,11 @@
       const deviceList = document.getElementById("devices");
       const serverBoard = document.getElementById("server-board");
       const gameResult = document.getElementById("game-result");
+      const gameResultHeading = document.getElementById("game-result-heading");
       const gameResultWinner = document.getElementById("game-result-winner");
       const flipBoardButton = document.getElementById("flip-board");
+      const blackResignsButton = document.getElementById("black-resigns");
+      const whiteResignsButton = document.getElementById("white-resigns");
       const boardSquares = new Map();
       const pieceSymbols = {
         "black-rook": "♜",
@@ -215,14 +228,26 @@
       }
 
       function renderGameResult(state) {
-        gameResult.hidden = !state.checkmateWinner;
-        if (state.checkmateWinner) {
+        gameResult.hidden = !state.checkmateWinner && !state.resignation;
+        if (state.resignation) {
+          gameResultHeading.textContent = `${state.resignation.resigned.toUpperCase()} RESIGNS`;
+          gameResultWinner.textContent = `${state.resignation.winner.toUpperCase()} WINS`;
+        } else if (state.checkmateWinner) {
+          gameResultHeading.textContent = "CHECKMATE";
           gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
         }
       }
 
       undoMoveButton.addEventListener("click", () => {
         socket.emit("undo-move");
+      });
+
+      blackResignsButton.addEventListener("click", () => {
+        socket.emit("resign", "Black");
+      });
+
+      whiteResignsButton.addEventListener("click", () => {
+        socket.emit("resign", "White");
       });
 
       flipBoardButton.addEventListener("click", () => {
@@ -243,7 +268,9 @@
         renderBoard(state.board, state.selectedSquare);
         renderMoveStatus(state);
         renderGameResult(state);
-        undoMoveButton.disabled = !state.canUndo;
+        undoMoveButton.disabled = !state.canUndo || Boolean(state.resignation);
+        blackResignsButton.disabled = Boolean(state.checkmateWinner || state.resignation);
+        whiteResignsButton.disabled = Boolean(state.checkmateWinner || state.resignation);
       });
 
       socket.on("devices-update", (devices) => {
