@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modular Chess Admin</title>
+  </head>
+  <body>
+    <h1>Connected board devices</h1>
+    <p id="status">Connecting to the server...</p>
+    <ul id="devices">
+      <li>Waiting for device list...</li>
+    </ul>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      const status = document.getElementById("status");
+      const deviceList = document.getElementById("devices");
+
+      socket.on("connect", () => {
+        status.textContent = "Connected to the server.";
+      });
+
+      socket.on("disconnect", () => {
+        status.textContent = "Disconnected from the server.";
+      });
+
+      socket.on("devices-update", (deviceNames) => {
+        deviceList.textContent = "";
+
+        if (deviceNames.length === 0) {
+          const item = document.createElement("li");
+          item.textContent = "No devices connected.";
+          deviceList.appendChild(item);
+          return;
+        }
+
+        deviceNames.forEach((deviceName) => {
+          const item = document.createElement("li");
+          item.textContent = deviceName;
+          deviceList.appendChild(item);
+        });
+      });
+    </script>
+  </body>
+</html>

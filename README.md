@@ -72,3 +72,11 @@ The page looks for a name in the browser's `localStorage` using the key `modular
 `localStorage` is a small key-and-value store kept by the browser for this website. It survives refreshes and browser restarts, so the phone reuses its name. It is local to that browser on that phone; another phone gets its own name. Clearing the browser's site data (or using private browsing) can remove it and cause a new name to be generated.
 
 The Socket.IO `socket.id` is a separate, temporary connection ID. It can change after a reconnect, so the page uses the saved friendly name when it needs an identity that lasts across refreshes. The name is only a label, not a password or proof of identity, and two random names could match by chance.
+
+## View connected devices on the admin page
+
+Start the server and open `http://localhost:3000/admin` on the laptop. The page shows the friendly names of registered board devices and changes without a refresh when one connects or disconnects.
+
+The server keeps a `Map` from each Socket.IO connection ID to its friendly device name. When a device registers or disconnects, the server sends the current names to every connected browser with `io.emit("devices-update", names)`. When the admin page first connects, the server sends it the current list with `socket.emit`, so it does not have to wait for the next change.
+
+This list is kept in server memory, so it starts empty after the server restarts. Connected phones reconnect and register again automatically.
