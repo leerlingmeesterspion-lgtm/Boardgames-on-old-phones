@@ -92,3 +92,9 @@ This is different from `io.emit(...)`, which broadcasts an event to every connec
 Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square.
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
+
+## Move the first piece between phones
+
+The server starts with a white pawn on A1 and an empty A2. In `/admin`, assign A1 to one connected phone and A2 to another, then save each assignment. On the first phone, tap the pawn on A1; on the second, tap A2. The pawn should disappear from A1 and appear on A2.
+
+The server owns the board state and broadcasts each update to the phones. It only checks that a tapped square is assigned to that phone; it does not check whether a move follows chess rules. Board state and square assignments are in memory and reset when the server restarts.

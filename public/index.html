@@ -19,10 +19,13 @@
       .assigned-square {
         align-items: center;
         display: flex;
-        font-size: 2rem;
+        flex-direction: column;
+        font-family: inherit;
         height: 7rem;
         justify-content: center;
+        padding: 0;
         width: 7rem;
+        cursor: pointer;
       }
 
       .assigned-square.light {
@@ -35,6 +38,20 @@
         background-color: #769656;
         border: 2px solid #222;
         color: #fff;
+      }
+
+      .assigned-square.selected {
+        outline: 4px solid #e6a700;
+        outline-offset: 2px;
+      }
+
+      .piece {
+        font-size: 4rem;
+        line-height: 1;
+      }
+
+      .square-coordinate {
+        font-size: 1rem;
       }
 
       body.identifying {
@@ -73,6 +90,8 @@
       const status = document.getElementById("status");
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
+      let assignedSquareNames = [];
+      let boardState = { board: {}, selectedSquare: null };
       let identifyTimer;
 
       function chooseRandom(items) {
@@ -92,6 +111,36 @@
         return sum % 2 !== 0 ? "dark" : "light";
       }
 
+      function renderAssignedSquares() {
+        assignedSquares.textContent = "";
+
+        assignedSquareNames.forEach((square) => {
+          const pieceName = boardState.board[square];
+          const rectangle = document.createElement("button");
+          rectangle.type = "button";
+          rectangle.className = `assigned-square ${getSquareColor(square)}`;
+          rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
+          if (boardState.selectedSquare === square) {
+            rectangle.classList.add("selected");
+          }
+
+          const piece = document.createElement("span");
+          piece.className = "piece";
+          piece.textContent = pieceName === "white-pawn" ? "♙" : "";
+          rectangle.appendChild(piece);
+
+          const coordinate = document.createElement("span");
+          coordinate.className = "square-coordinate";
+          coordinate.textContent = square.toUpperCase();
+          rectangle.appendChild(coordinate);
+
+          rectangle.addEventListener("click", () => {
+            socket.emit("square-tapped", square);
+          });
+          assignedSquares.appendChild(rectangle);
+        });
+      }
+
       let deviceName = localStorage.getItem(storageKey);
 
       if (!deviceName) {
@@ -106,14 +155,13 @@
       });
 
       socket.on("squares-update", (squares) => {
-        assignedSquares.textContent = "";
+        assignedSquareNames = squares;
+        renderAssignedSquares();
+      });
 
-        squares.forEach((square) => {
-          const rectangle = document.createElement("div");
-          rectangle.className = `assigned-square ${getSquareColor(square)}`;
-          rectangle.textContent = square.toUpperCase();
-          assignedSquares.appendChild(rectangle);
-        });
+      socket.on("board-update", (state) => {
+        boardState = state;
+        renderAssignedSquares();
       });
 
       socket.on("identify", () => {

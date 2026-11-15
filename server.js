@@ -8,6 +8,30 @@ const server = http.createServer(app);
 const io = new Server(server);
 const port = 3000;
 const devices = new Map();
+const board = {};
+let selectedSquare = null;
+
+for (const file of "abcdefgh") {
+  for (const rank of "12345678") {
+    board[`${file}${rank}`] = null;
+  }
+}
+board.a1 = "white-pawn";
+
+function getBoardState() {
+  return {
+    board: { ...board },
+    selectedSquare
+  };
+}
+
+function broadcastBoardState() {
+  io.emit("board-update", getBoardState());
+}
+
+function isValidSquare(square) {
+  return typeof square === "string" && /^[a-h][1-8]$/.test(square);
+}
 
 function getConnectedDevices() {
   const connectedDevices = [];
@@ -38,11 +62,10 @@ function areValidSquares(squares) {
     return false;
   }
 
-  const validSquare = /^[a-h][1-8]$/;
   const uniqueSquares = new Set(squares);
 
   return uniqueSquares.size === squares.length &&
-    squares.every((square) => typeof square === "string" && validSquare.test(square));
+    squares.every(isValidSquare);
 }
 
 function broadcastDeviceNames() {
@@ -57,6 +80,7 @@ app.get("/admin", (request, response) => {
 
 io.on("connection", (socket) => {
   socket.emit("devices-update", getConnectedDevices());
+  socket.emit("board-update", getBoardState());
 
   socket.on("register-device", (deviceName) => {
     if (typeof deviceName !== "string" || !/^[A-Z]{2,10}-[A-Z]{2,10}-\d{2}$/.test(deviceName)) {
@@ -104,10 +128,51 @@ io.on("connection", (socket) => {
     broadcastDeviceNames();
   });
 
+  socket.on("square-tapped", (square) => {
+    const deviceName = socket.data.deviceName;
+    const device = deviceName ? devices.get(deviceName) : undefined;
+    if (!isValidSquare(square) || !device || device.socketId !== socket.id || !device.squares.includes(square)) {
+      console.warn(`Ignored square tap from unassigned device ${socket.id}`);
+      return;
+    }
+
+    if (selectedSquare === null) {
+      if (board[square] !== null) {
+        selectedSquare = square;
+        broadcastBoardState();
+      }
+      return;
+    }
+
+    if (square === selectedSquare) {
+      selectedSquare = null;
+      broadcastBoardState();
+      return;
+    }
+
+    if (board[square] !== null) {
+      selectedSquare = square;
+      broadcastBoardState();
+      return;
+    }
+
+    const fromSquare = selectedSquare;
+    const piece = board[fromSquare];
+    board[square] = piece;
+    board[fromSquare] = null;
+    selectedSquare = null;
+    console.log(`${piece} moved from ${fromSquare.toUpperCase()} to ${square.toUpperCase()}`);
+    broadcastBoardState();
+  });
+
   socket.on("disconnect", () => {
     const deviceName = socket.data.deviceName;
     const device = deviceName ? devices.get(deviceName) : undefined;
     if (device && device.socketId === socket.id) {
+      if (device.squares.includes(selectedSquare)) {
+        selectedSquare = null;
+        broadcastBoardState();
+      }
       device.socketId = null;
       console.log(`${deviceName} disconnected`);
       broadcastDeviceNames();
