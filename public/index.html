@@ -10,6 +10,22 @@
         text-align: center;
       }
 
+      #assigned-squares {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .assigned-square {
+        align-items: center;
+        border: 2px solid #222;
+        display: flex;
+        font-size: 2rem;
+        height: 7rem;
+        justify-content: center;
+        width: 7rem;
+      }
+
       body.identifying {
         animation: identify-flash 1s ease-in-out infinite alternate;
       }
@@ -35,6 +51,7 @@
   <body>
     <p id="status">Connecting to the server...</p>
     <h1 id="identify-name" hidden></h1>
+    <div id="assigned-squares"></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -44,6 +61,7 @@
       const socket = io();
       const status = document.getElementById("status");
       const identifyName = document.getElementById("identify-name");
+      const assignedSquares = document.getElementById("assigned-squares");
       let identifyTimer;
 
       function chooseRandom(items) {
@@ -61,6 +79,17 @@
       socket.on("connect", () => {
         socket.emit("register-device", deviceName);
         status.textContent = `Connected as ${deviceName}`;
+      });
+
+      socket.on("squares-update", (squares) => {
+        assignedSquares.textContent = "";
+
+        squares.forEach((square) => {
+          const rectangle = document.createElement("div");
+          rectangle.className = "assigned-square";
+          rectangle.textContent = square.toUpperCase();
+          assignedSquares.appendChild(rectangle);
+        });
       });
 
       socket.on("identify", () => {

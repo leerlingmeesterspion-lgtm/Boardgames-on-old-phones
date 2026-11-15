@@ -4,6 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Modular Chess Admin</title>
+    <style>
+      .square-picker {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(2.5rem, 1fr));
+        gap: 0.25rem;
+        max-width: 32rem;
+        margin: 0.5rem 0;
+      }
+
+      .square-picker label {
+        border: 1px solid #888;
+        padding: 0.25rem;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
     <h1>Connected board devices</h1>
@@ -39,10 +54,9 @@
         devices.forEach((device) => {
           const item = document.createElement("li");
 
-          const name = document.createElement("span");
-          name.textContent = device.name;
-          item.appendChild(name);
-          item.appendChild(document.createTextNode(" "));
+          const heading = document.createElement("h2");
+          heading.textContent = device.name;
+          item.appendChild(heading);
 
           const identifyButton = document.createElement("button");
           identifyButton.textContent = "Identify";
@@ -50,6 +64,42 @@
             socket.emit("identify-device", device.id);
           });
           item.appendChild(identifyButton);
+
+          const assignedLabel = document.createElement("p");
+          assignedLabel.textContent = "Assigned squares:";
+          item.appendChild(assignedLabel);
+
+          const squarePicker = document.createElement("div");
+          squarePicker.className = "square-picker";
+          const files = "abcdefgh";
+          const ranks = "87654321";
+
+          for (const rank of ranks) {
+            for (const file of files) {
+              const square = `${file}${rank}`;
+              const label = document.createElement("label");
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.value = square;
+              checkbox.checked = device.squares.includes(square);
+              label.appendChild(checkbox);
+              label.appendChild(document.createTextNode(square.toUpperCase()));
+              squarePicker.appendChild(label);
+            }
+          }
+          item.appendChild(squarePicker);
+
+          const saveButton = document.createElement("button");
+          saveButton.textContent = "Save";
+          saveButton.addEventListener("click", () => {
+            const squares = Array.from(squarePicker.querySelectorAll("input:checked"))
+              .map((checkbox) => checkbox.value);
+            socket.emit("save-device-squares", {
+              deviceId: device.id,
+              squares
+            });
+          });
+          item.appendChild(saveButton);
 
           deviceList.appendChild(item);
         });

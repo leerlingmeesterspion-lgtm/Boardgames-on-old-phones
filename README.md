@@ -86,3 +86,9 @@ This list is kept in server memory, so it starts empty after the server restarts
 Each device row on `/admin` has an **Identify** button. Clicking it sends that device's Socket.IO connection ID to the server. The server uses `io.to(deviceId).emit("identify")` to send the event only to that phone. Its page shows the friendly name in large letters and flashes its background for five seconds.
 
 This is different from `io.emit(...)`, which broadcasts an event to every connected browser. The admin list includes connection IDs so the server can target one connection even if two devices happen to have the same friendly name.
+
+## Assign chessboard squares
+
+Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square.
+
+The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
