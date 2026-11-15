@@ -95,6 +95,6 @@ The square configuration stays in server memory if a phone disconnects and recon
 
 ## Move the first piece between phones
 
-The first milestone used a single white pawn on A1. The server now starts with the standard chess position across all 64 squares. To try a cross-phone move, assign A2 to one connected phone and A3 to another in `/admin`, then tap the pawn on A2 and tap A3 on the other phone.
+The server starts with the standard chess position across all 64 squares. To try a cross-phone move, assign E2 to one connected phone and E4 to another in `/admin`, then tap the pawn on E2 and tap E4 on the other phone.
 
-The server owns the board state and broadcasts each update to the phones and `/admin`. The admin board is a troubleshooting view of that state. The server only checks that a tapped square is assigned to that phone; it does not check whether a move follows chess rules. Board state and square assignments are in memory and reset when the server restarts.
+The server asks `chess.js` whether a move is legal before changing its authoritative game state. If the move is legal, it broadcasts the new board to the phones and `/admin`; if not, the board stays unchanged. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.

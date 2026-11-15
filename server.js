@@ -2,35 +2,41 @@ const express = require("express");
 const http = require("node:http");
 const path = require("node:path");
 const { Server } = require("socket.io");
+const { Chess } = require("chess.js");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const port = 3000;
 const devices = new Map();
-const board = {};
+const chess = new Chess();
+const pieceNames = {
+  p: "pawn",
+  n: "knight",
+  b: "bishop",
+  r: "rook",
+  q: "queen",
+  k: "king"
+};
+const files = "abcdefgh";
+const ranks = "12345678";
 let selectedSquare = null;
 
-const files = "abcdefgh";
-const backRankPieces = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"];
-
-for (const file of files) {
-  for (const rank of "12345678") {
-    board[`${file}${rank}`] = null;
-  }
-}
-
-for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-  const file = files[fileIndex];
-  board[`${file}8`] = `black-${backRankPieces[fileIndex]}`;
-  board[`${file}7`] = "black-pawn";
-  board[`${file}2`] = "white-pawn";
-  board[`${file}1`] = `white-${backRankPieces[fileIndex]}`;
-}
-
 function getBoardState() {
+  const board = {};
+
+  for (const file of files) {
+    for (const rank of ranks) {
+      const square = `${file}${rank}`;
+      const piece = chess.get(square);
+      board[square] = piece
+        ? `${piece.color === "w" ? "white" : "black"}-${pieceNames[piece.type]}`
+        : null;
+    }
+  }
+
   return {
-    board: { ...board },
+    board,
     selectedSquare
   };
 }
@@ -147,7 +153,8 @@ io.on("connection", (socket) => {
     }
 
     if (selectedSquare === null) {
-      if (board[square] !== null) {
+      const piece = chess.get(square);
+      if (piece && piece.color === chess.turn()) {
         selectedSquare = square;
         broadcastBoardState();
       }
@@ -160,18 +167,30 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (board[square] !== null) {
+    const tappedPiece = chess.get(square);
+    if (tappedPiece && tappedPiece.color === chess.turn()) {
       selectedSquare = square;
       broadcastBoardState();
       return;
     }
 
     const fromSquare = selectedSquare;
-    const piece = board[fromSquare];
-    board[square] = piece;
-    board[fromSquare] = null;
+    const legalMove = chess.moves({ square: fromSquare, verbose: true })
+      .find((move) => move.to === square);
+    if (!legalMove) {
+      selectedSquare = null;
+      socket.emit("move-rejected", { from: fromSquare, to: square });
+      broadcastBoardState();
+      return;
+    }
+
+    const move = chess.move({
+      from: fromSquare,
+      to: square,
+      promotion: "q"
+    });
     selectedSquare = null;
-    console.log(`${piece} moved from ${fromSquare.toUpperCase()} to ${square.toUpperCase()}`);
+    console.log(`Move accepted: ${move.san}`);
     broadcastBoardState();
   });
 

@@ -107,6 +107,7 @@
       let assignedSquareNames = [];
       let boardState = { board: {}, selectedSquare: null };
       let identifyTimer;
+      let moveMessageTimer;
 
       function chooseRandom(items) {
         return items[Math.floor(Math.random() * items.length)];
@@ -176,6 +177,14 @@
       socket.on("board-update", (state) => {
         boardState = state;
         renderAssignedSquares();
+      });
+
+      socket.on("move-rejected", ({ from, to }) => {
+        window.clearTimeout(moveMessageTimer);
+        status.textContent = `That move is not legal: ${from.toUpperCase()} to ${to.toUpperCase()}`;
+        moveMessageTimer = window.setTimeout(() => {
+          status.textContent = `Connected as ${deviceName}`;
+        }, 3000);
       });
 
       socket.on("identify", () => {
