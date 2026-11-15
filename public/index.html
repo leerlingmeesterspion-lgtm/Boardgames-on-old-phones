@@ -123,6 +123,10 @@
         outline-offset: 2px;
       }
 
+      .assigned-square.black-side {
+        transform: rotate(180deg);
+      }
+
       .piece {
         font-size: var(--piece-size, 4rem);
         line-height: 1;
@@ -130,7 +134,6 @@
 
       .piece.black {
         color: #111;
-        -webkit-text-stroke: 1px #fff;
       }
 
       .piece.white {
@@ -347,15 +350,31 @@
         }
       });
 
+      function renderAssignedSquareState() {
+        Array.from(assignedSquares.children).forEach((rectangle) => {
+          const square = rectangle.dataset.square;
+          const pieceName = boardState.board[square];
+          rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
+          rectangle.classList.toggle("selected", boardState.selectedSquare === square);
+
+          const piece = rectangle.querySelector(".piece");
+          piece.className = `piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
+          piece.textContent = pieceSymbols[pieceName] || "";
+        });
+      }
+
       function renderAssignedSquares() {
         assignedSquares.textContent = "";
         const bounds = getAssignedSquareBounds();
 
         assignedSquareNames.forEach((square) => {
-          const pieceName = boardState.board[square];
           const rectangle = document.createElement("button");
           rectangle.type = "button";
           rectangle.className = `assigned-square ${getSquareColor(square)}`;
+          rectangle.dataset.square = square;
+          if (bounds.blackSide) {
+            rectangle.classList.add("black-side");
+          }
           const filePosition = square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile;
           const rankPosition = bounds.maxRank - Number(square.charAt(1));
           rectangle.style.gridColumn = String(
@@ -364,14 +383,9 @@
           rectangle.style.gridRow = String(
             (bounds.blackSide ? bounds.rows - rankPosition - 1 : rankPosition) + 1
           );
-          rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
-          if (boardState.selectedSquare === square) {
-            rectangle.classList.add("selected");
-          }
 
           const piece = document.createElement("span");
-          piece.className = `piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
-          piece.textContent = pieceSymbols[pieceName] || "";
+          piece.className = "piece";
           rectangle.appendChild(piece);
 
           const coordinate = document.createElement("span");
@@ -379,13 +393,11 @@
           coordinate.textContent = square.toUpperCase();
           rectangle.appendChild(coordinate);
 
-          rectangle.addEventListener("click", () => {
-            socket.emit("square-tapped", square);
-          });
           assignedSquares.appendChild(rectangle);
         });
 
         fitAssignedSquares();
+        renderAssignedSquareState();
       }
 
       function renderMoveStatus(state) {
@@ -432,7 +444,7 @@
         boardState = state;
         renderMoveStatus(state);
         renderGameResult(state);
-        renderAssignedSquares();
+        renderAssignedSquareState();
       });
 
       socket.on("move-rejected", ({ from, to }) => {
@@ -455,6 +467,13 @@
           status.hidden = false;
           identifyName.hidden = true;
         }, 5000);
+      });
+
+      assignedSquares.addEventListener("click", (event) => {
+        const rectangle = event.target.closest(".assigned-square");
+        if (rectangle) {
+          socket.emit("square-tapped", rectangle.dataset.square);
+        }
       });
 
       window.addEventListener("resize", updateViewportLayout);
