@@ -54,6 +54,15 @@
         font-size: clamp(1.25rem, 5vw, 2.75rem);
       }
 
+      .server-square-piece.black {
+        color: #111;
+      }
+
+      .server-square-piece.white {
+        color: #fff;
+        -webkit-text-stroke: 1px #222;
+      }
+
       .server-square-coordinate {
         bottom: 0.1rem;
         font-size: 0.6rem;
@@ -121,12 +130,12 @@
         "black-queen": "♛",
         "black-king": "♚",
         "black-pawn": "♟",
-        "white-rook": "♖",
-        "white-knight": "♘",
-        "white-bishop": "♗",
-        "white-queen": "♕",
-        "white-king": "♔",
-        "white-pawn": "♙"
+        "white-rook": "♜",
+        "white-knight": "♞",
+        "white-bishop": "♝",
+        "white-queen": "♛",
+        "white-king": "♚",
+        "white-pawn": "♟"
       };
 
       function renderBoard(board, selectedSquare) {
@@ -149,7 +158,7 @@
             }
 
             const piece = document.createElement("span");
-            piece.className = "server-square-piece";
+            piece.className = `server-square-piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
             piece.textContent = pieceSymbols[pieceName] || "";
             cell.appendChild(piece);
 
