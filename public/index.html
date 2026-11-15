@@ -18,12 +18,23 @@
 
       .assigned-square {
         align-items: center;
-        border: 2px solid #222;
         display: flex;
         font-size: 2rem;
         height: 7rem;
         justify-content: center;
         width: 7rem;
+      }
+
+      .assigned-square.light {
+        background-color: #f0d9b5;
+        border: 2px solid #222;
+        color: #222;
+      }
+
+      .assigned-square.dark {
+        background-color: #769656;
+        border: 2px solid #222;
+        color: #fff;
       }
 
       body.identifying {
@@ -68,6 +79,19 @@
         return items[Math.floor(Math.random() * items.length)];
       }
 
+      function getSquareColor(square) {
+        if (typeof square !== "string" || !/^[A-H][1-8]$/i.test(square)) {
+          throw new Error(`Invalid chess square: ${square}`);
+        }
+
+        const colLetter = square.charAt(0).toUpperCase();
+        const rank = Number(square.charAt(1));
+        const colIndex = colLetter.charCodeAt(0) - "A".charCodeAt(0);
+        const sum = colIndex + rank;
+
+        return sum % 2 !== 0 ? "dark" : "light";
+      }
+
       let deviceName = localStorage.getItem(storageKey);
 
       if (!deviceName) {
@@ -86,7 +110,7 @@
 
         squares.forEach((square) => {
           const rectangle = document.createElement("div");
-          rectangle.className = "assigned-square";
+          rectangle.className = `assigned-square ${getSquareColor(square)}`;
           rectangle.textContent = square.toUpperCase();
           assignedSquares.appendChild(rectangle);
         });
