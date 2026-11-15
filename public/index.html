@@ -32,6 +32,21 @@
         text-align: center;
       }
 
+      #wake-lock-controls {
+        flex: 0 0 auto;
+        text-align: center;
+      }
+
+      #wake-lock-button {
+        min-height: 2.75rem;
+        padding: 0.5rem 1rem;
+        touch-action: manipulation;
+      }
+
+      #wake-lock-status {
+        margin: 0.25rem 0 0;
+      }
+
       #identify-name {
         font-size: clamp(4rem, 20vw, 14rem);
         margin: auto 0;
@@ -141,6 +156,10 @@
   </head>
   <body>
     <p id="status">Connecting to the server...</p>
+    <div id="wake-lock-controls">
+      <button id="wake-lock-button" type="button">Allow screen to sleep</button>
+      <p id="wake-lock-status" role="status" aria-live="polite">Trying to keep the screen awake...</p>
+    </div>
     <p id="turn-status">Waiting for the board...</p>
     <p id="last-move">No moves yet.</p>
     <h1 id="identify-name" hidden></h1>
@@ -157,6 +176,8 @@
       const animals = ["FOX", "PANDA", "TIGER", "OWL", "LION", "KOALA", "OTTER", "EAGLE", "WOLF", "BEAR"];
       const socket = io();
       const status = document.getElementById("status");
+      const wakeLockButton = document.getElementById("wake-lock-button");
+      const wakeLockStatus = document.getElementById("wake-lock-status");
       const turnStatus = document.getElementById("turn-status");
       const lastMoveStatus = document.getElementById("last-move");
       const identifyName = document.getElementById("identify-name");
@@ -181,6 +202,9 @@
       let boardState = { board: {}, selectedSquare: null };
       let identifyTimer;
       let moveMessageTimer;
+      let screenWakeLock = null;
+      let screenWakeLockEnabled = true;
+      let wakeLockRequestPending = false;
 
       function chooseRandom(items) {
         return items[Math.floor(Math.random() * items.length)];
@@ -246,6 +270,71 @@
         document.documentElement.style.setProperty("--viewport-height", `${viewportHeight}px`);
         fitAssignedSquares();
       }
+
+      function showWakeLockUnavailable() {
+        wakeLockButton.disabled = true;
+        wakeLockButton.textContent = "Screen wake lock unavailable";
+        wakeLockStatus.textContent = window.isSecureContext
+          ? "This browser does not support keeping the screen awake. Increase the device screen timeout in its settings."
+          : "Keeping the screen awake requires a secure connection (HTTPS). Increase the device screen timeout in its settings.";
+      }
+
+      async function requestScreenWakeLock() {
+        if (wakeLockRequestPending || !screenWakeLockEnabled || document.visibilityState !== "visible") {
+          return;
+        }
+
+        if (!("wakeLock" in navigator)) {
+          showWakeLockUnavailable();
+          return;
+        }
+
+        wakeLockRequestPending = true;
+        wakeLockButton.disabled = true;
+        try {
+          screenWakeLock = await navigator.wakeLock.request("screen");
+          wakeLockButton.textContent = "Allow screen to sleep";
+          wakeLockStatus.textContent = "The screen will stay awake while this page is visible.";
+          screenWakeLock.addEventListener("release", () => {
+            screenWakeLock = null;
+            if (screenWakeLockEnabled && document.visibilityState === "visible") {
+              wakeLockButton.textContent = "Keep screen awake";
+              wakeLockStatus.textContent = "The screen wake lock was released. Tap to try again.";
+            }
+          }, { once: true });
+        } catch (error) {
+          screenWakeLock = null;
+          wakeLockButton.textContent = "Try keeping screen awake";
+          wakeLockStatus.textContent = `Could not keep the screen awake: ${error}`;
+        } finally {
+          wakeLockRequestPending = false;
+          wakeLockButton.disabled = false;
+        }
+      }
+
+      wakeLockButton.addEventListener("click", async () => {
+        screenWakeLockEnabled = !screenWakeLockEnabled;
+        if (!screenWakeLockEnabled) {
+          try {
+            if (screenWakeLock && !screenWakeLock.released) {
+              await screenWakeLock.release();
+            }
+            wakeLockButton.textContent = "Keep screen awake";
+            wakeLockStatus.textContent = "The screen may sleep while this setting is off.";
+          } catch (error) {
+            wakeLockStatus.textContent = `Could not release the screen wake lock: ${error}`;
+          }
+          return;
+        }
+
+        await requestScreenWakeLock();
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          requestScreenWakeLock();
+        }
+      });
 
       function renderAssignedSquares() {
         assignedSquares.textContent = "";
@@ -356,6 +445,7 @@
         window.visualViewport.addEventListener("resize", updateViewportLayout);
       }
       updateViewportLayout();
+      requestScreenWakeLock();
     </script>
   </body>
 </html>

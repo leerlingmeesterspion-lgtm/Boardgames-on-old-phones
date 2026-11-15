@@ -93,6 +93,17 @@ Each connected device has an 8-by-8 square picker on `/admin`. Select squares su
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
 
+## Keep a phone screen awake
+
+The phone page requests a browser screen wake lock automatically and requests it again when you return to the page. Use **Allow screen to sleep** to release it, or **Keep screen awake** to request it again. The lock only applies while the page is visible.
+
+Screen wake locks require browser support and a secure context. When opening the page from another device on the local network, that means serving it over HTTPS; plain HTTP and older browsers may not support the feature. The page reports when it cannot request a lock. For reliable use over HTTP:
+
+- On Android, open **Settings > Display > Screen timeout** (the menu name can vary) and select the longest available timeout. To keep it awake only while plugged in, enable **Developer options > Stay awake**.
+- On iPadOS 17, open **Settings > Display & Brightness > Auto-Lock** and select **Never**. If **Never** is unavailable, check whether Low Power Mode or a device-management restriction is enabled.
+
+Browser and iOS support varies by device and version, so a website cannot override these settings on every device.
+
 ## Move the first piece between phones
 
 The server starts with the standard chess position across all 64 squares. To try a cross-phone move, assign E2 to one connected phone and E4 to another in `/admin`, then tap the pawn on E2 and tap E4 on the other phone.
