@@ -89,7 +89,7 @@ This is different from `io.emit(...)`, which broadcasts an event to every connec
 
 ## Assign chessboard squares
 
-Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative chessboard positions, centers them, and sizes them to fit its available screen space. The layout adjusts when the screen is resized or rotated.
+Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative chessboard positions, centers them, and sizes them to fit its available screen space. A device assigned only squares on ranks 7 and 8 sees those squares flipped to face the black side; other assignments keep the white-side orientation. Pieces use solid black or white silhouettes with contrasting outlines. The layout adjusts when the screen is resized or rotated.
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
 

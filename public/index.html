@@ -128,6 +128,16 @@
         line-height: 1;
       }
 
+      .piece.black {
+        color: #111;
+        -webkit-text-stroke: 1px #fff;
+      }
+
+      .piece.white {
+        color: #fff;
+        -webkit-text-stroke: 1px #222;
+      }
+
       .square-coordinate {
         font-size: var(--coordinate-size, 1rem);
       }
@@ -191,12 +201,12 @@
         "black-queen": "♛",
         "black-king": "♚",
         "black-pawn": "♟",
-        "white-rook": "♖",
-        "white-knight": "♘",
-        "white-bishop": "♗",
-        "white-queen": "♕",
-        "white-king": "♔",
-        "white-pawn": "♙"
+        "white-rook": "♜",
+        "white-knight": "♞",
+        "white-bishop": "♝",
+        "white-queen": "♛",
+        "white-king": "♚",
+        "white-pawn": "♟"
       };
       let assignedSquareNames = [];
       let boardState = { board: {}, selectedSquare: null };
@@ -239,7 +249,8 @@
           minFile,
           maxRank,
           columns: maxFile - minFile + 1,
-          rows: maxRank - minRank + 1
+          rows: maxRank - minRank + 1,
+          blackSide: ranks.every((rank) => rank >= 7)
         };
       }
 
@@ -345,15 +356,21 @@
           const rectangle = document.createElement("button");
           rectangle.type = "button";
           rectangle.className = `assigned-square ${getSquareColor(square)}`;
-          rectangle.style.gridColumn = String(square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile + 1);
-          rectangle.style.gridRow = String(bounds.maxRank - Number(square.charAt(1)) + 1);
+          const filePosition = square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile;
+          const rankPosition = bounds.maxRank - Number(square.charAt(1));
+          rectangle.style.gridColumn = String(
+            (bounds.blackSide ? bounds.columns - filePosition - 1 : filePosition) + 1
+          );
+          rectangle.style.gridRow = String(
+            (bounds.blackSide ? bounds.rows - rankPosition - 1 : rankPosition) + 1
+          );
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
           if (boardState.selectedSquare === square) {
             rectangle.classList.add("selected");
           }
 
           const piece = document.createElement("span");
-          piece.className = "piece";
+          piece.className = `piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
           piece.textContent = pieceSymbols[pieceName] || "";
           rectangle.appendChild(piece);
 
