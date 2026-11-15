@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modular Chess Server</title>
+  </head>
+  <body>
+    <p id="status">Connecting to the server...</p>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const storageKey = "modular-chess-device-name";
+      const colors = ["BLUE", "RED", "GREEN", "GOLD", "PURPLE", "SILVER", "ORANGE", "WHITE", "BLACK", "TEAL"];
+      const animals = ["FOX", "PANDA", "TIGER", "OWL", "LION", "KOALA", "OTTER", "EAGLE", "WOLF", "BEAR"];
+      const socket = io();
+      const status = document.getElementById("status");
+
+      function chooseRandom(items) {
+        return items[Math.floor(Math.random() * items.length)];
+      }
+
+      let deviceName = localStorage.getItem(storageKey);
+
+      if (!deviceName) {
+        const number = Math.floor(Math.random() * 90) + 10;
+        deviceName = `${chooseRandom(colors)}-${chooseRandom(animals)}-${number}`;
+        localStorage.setItem(storageKey, deviceName);
+      }
+
+      socket.on("connect", () => {
+        socket.emit("register-device", deviceName);
+        status.textContent = `Connected as ${deviceName}`;
+      });
+    </script>
+  </body>
+</html>

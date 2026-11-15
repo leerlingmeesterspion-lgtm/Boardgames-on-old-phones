@@ -26,23 +26,49 @@ Display a message from a small Express server in a web browser.
    cd "C:\Users\Sander Theeuwes\Documents\Chess op telefoon\Chess"
    ```
 
-2. Install Express, the web-server library used by this project:
+2. Install the project dependencies:
 
    ```powershell
-   npm install
+   npm.cmd install
    ```
 
 3. Start the server:
 
    ```powershell
-   npm start
+   npm.cmd start
    ```
 
-4. Open `http://localhost:3000` in a browser. The page should say `Modular Chess Server is running!`. Leave PowerShell open while the server is running; press `Ctrl+C` there to stop it.
+4. Open `http://localhost:3000` in a browser. Leave PowerShell open while the server is running; press `Ctrl+C` there to stop it.
 
 ## How the server works
 
 - `server.js` creates an Express app and listens on port `3000`.
-- `app.get("/")` tells Express what to send when the browser visits the home page (`/`).
-- `response.send(...)` sends the message to the browser.
-- `package.json` lists Express as a dependency and defines `npm start` as a shortcut for `node server.js`.
+- Express serves the browser page from `public/index.html`.
+- `package.json` lists the dependencies and defines `npm start` as a shortcut for `node server.js`.
+
+## Detect a connected phone
+
+Socket.IO lets the webpage keep a real-time connection to the server. It is installed in this project already. To install it yourself in a fresh copy, run:
+
+```powershell
+npm.cmd install socket.io
+```
+
+Then start the server with `npm.cmd start`. Open the page on your laptop or phone. On your phone, use the laptop's local network address (for example, `http://192.168.1.20:3000`), not `localhost`.
+
+When a browser connects, the PowerShell window should show:
+
+```text
+Server running on port 3000
+BLUE-FOX-27 connected
+```
+
+The `http` server serves the page and is also passed to Socket.IO. The browser loads Socket.IO's client script and calls `io()` to connect.
+
+## Give each browser a friendly name
+
+The page looks for a name in the browser's `localStorage` using the key `modular-chess-device-name`. If it does not find one, it picks a color, an animal, and a two-digit number, then saves that name. On every Socket.IO connection, the browser sends the saved name with the `register-device` event. The server checks its format and prints it.
+
+`localStorage` is a small key-and-value store kept by the browser for this website. It survives refreshes and browser restarts, so the phone reuses its name. It is local to that browser on that phone; another phone gets its own name. Clearing the browser's site data (or using private browsing) can remove it and cause a new name to be generated.
+
+The Socket.IO `socket.id` is a separate, temporary connection ID. It can change after a reconnect, so the page uses the saved friendly name when it needs an identity that lasts across refreshes. The name is only a label, not a password or proof of identity, and two random names could match by chance.
