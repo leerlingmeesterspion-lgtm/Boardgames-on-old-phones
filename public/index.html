@@ -18,10 +18,10 @@
       body {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0;
         height: var(--viewport-height, 100vh);
         overflow: hidden;
-        padding: 0.5rem;
+        padding: 0;
       }
 
       #status,
@@ -29,22 +29,33 @@
       #last-move {
         flex: 0 0 auto;
         margin: 0;
+        min-height: 1.2rem;
+        padding: 0.1rem;
         text-align: center;
       }
 
       #wake-lock-controls {
+        align-items: center;
+        display: flex;
         flex: 0 0 auto;
+        gap: 0.35rem;
+        justify-content: center;
         text-align: center;
       }
 
       #wake-lock-button {
-        min-height: 2.75rem;
-        padding: 0.5rem 1rem;
+        min-height: 2rem;
+        padding: 0.25rem 0.5rem;
         touch-action: manipulation;
       }
 
       #wake-lock-status {
-        margin: 0.25rem 0 0;
+        font-size: 0.75rem;
+        margin: 0;
+        max-width: 65vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       #identify-name {
@@ -82,7 +93,7 @@
         align-content: center;
         display: grid;
         flex: 1 1 0;
-        gap: 0.5rem;
+        gap: 0;
         grid-template-columns: repeat(var(--columns, 1), var(--square-size, 7rem));
         grid-template-rows: repeat(var(--rows, 1), var(--square-size, 7rem));
         justify-content: center;
@@ -113,13 +124,13 @@
 
       .assigned-square.light {
         background-color: #f0d9b5;
-        border: 2px solid #222;
+        border: 1px solid #222;
         color: #222;
       }
 
       .assigned-square.dark {
         background-color: #769656;
-        border: 2px solid #222;
+        border: 1px solid #222;
         color: #fff;
       }
 
