@@ -6,7 +6,7 @@ A chess game where old Android phones are used as individual parts of a physical
 
 - Windows 11 laptop = master
 
-- Android phones = chessboard displays
+- Android phones or other phones with working browser = chessboard displays
 
 - Node.js web server
 
