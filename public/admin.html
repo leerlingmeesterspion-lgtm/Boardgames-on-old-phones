@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Modular Chess Admin</title>
+    <title>Modular Board Admin</title>
     <style>
       .square-picker {
         display: grid;
-        grid-template-columns: repeat(8, minmax(2.5rem, 1fr));
+        grid-template-columns: repeat(var(--board-size, 8), minmax(2.5rem, 1fr));
         gap: 0.25rem;
         max-width: 32rem;
         margin: 0.5rem 0;
@@ -67,7 +67,37 @@
       }
 
       .server-square-piece.white {
-        filter: brightness(0) invert(1) drop-shadow(0 0 1px #222);
+        color: #fff;
+        filter: none;
+        -webkit-text-fill-color: #fff;
+        -webkit-text-stroke: 1px #222;
+      }
+
+      .server-square-piece.checker-piece {
+        aspect-ratio: 1;
+        border: 2px solid #222;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%), 0 1px 2px #222;
+        filter: none;
+        width: 68%;
+      }
+
+      .server-square-piece.checker-piece.black {
+        background: #171717;
+        transform: none;
+      }
+
+      .server-square-piece.checker-piece.white {
+        background: #f8f2e7;
+      }
+
+      .server-square-piece.checker-piece.king::after {
+        color: #b8860b;
+        content: "K";
+        font-family: sans-serif;
+        font-size: 0.55em;
+        font-weight: bold;
+        -webkit-text-fill-color: #b8860b;
       }
 
       .server-square-coordinate {
@@ -122,6 +152,11 @@
     <p id="status">Connecting to the server...</p>
     <p id="turn-status">Waiting for the board...</p>
     <p id="last-move">No moves yet.</p>
+    <label for="game-select">Game (switching starts a new game):</label>
+    <select id="game-select">
+      <option value="chess">Chess (8×8)</option>
+      <option value="checkers">International draughts (10×10)</option>
+    </select>
     <div class="game-controls">
       <button id="undo-move" type="button" disabled>Revert last move</button>
       <button id="black-resigns" type="button" disabled>Black resigns</button>
@@ -151,9 +186,13 @@
       const gameResultHeading = document.getElementById("game-result-heading");
       const gameResultWinner = document.getElementById("game-result-winner");
       const flipBoardButton = document.getElementById("flip-board");
+      const gameSelect = document.getElementById("game-select");
       const blackResignsButton = document.getElementById("black-resigns");
       const whiteResignsButton = document.getElementById("white-resigns");
       const boardSquares = new Map();
+      let renderedBoardSize = 0;
+      let currentBoardSize = 8;
+      let connectedDevices = [];
       const pieceSymbols = {
         "black-rook": "♜",
         "black-knight": "♞",
@@ -161,25 +200,35 @@
         "black-queen": "♛",
         "black-king": "♚",
         "black-pawn": "♟",
-        "white-rook": "♜",
-        "white-knight": "♞",
-        "white-bishop": "♝",
-        "white-queen": "♛",
-        "white-king": "♚",
-        "white-pawn": "♟"
+        "white-rook": "♖︎",
+        "white-knight": "♘︎",
+        "white-bishop": "♗︎",
+        "white-queen": "♕︎",
+        "white-king": "♔︎",
+        "white-pawn": "♙︎"
       };
 
-      function renderBoard(board, selectedSquare) {
-        if (boardSquares.size === 0) {
-          const files = "abcdefgh";
-          const ranks = "87654321";
+      function isSquareInsideBoard(square, size) {
+        const file = square.charCodeAt(0) - "a".charCodeAt(0);
+        const rank = Number(square.slice(1));
+        return file >= 0 && file < size && rank >= 1 && rank <= size;
+      }
 
-          for (const rank of ranks) {
-            for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+      function renderBoard(board, selectedSquare, size) {
+        if (renderedBoardSize !== size) {
+          serverBoard.textContent = "";
+          boardSquares.clear();
+          renderedBoardSize = size;
+          serverBoard.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+          serverBoard.setAttribute("aria-label", `${size} by ${size} ${gameSelect.selectedOptions[0].text} board`);
+          const files = "abcdefghij";
+
+          for (let rank = size; rank >= 1; rank--) {
+            for (let fileIndex = 0; fileIndex < size; fileIndex++) {
               const file = files[fileIndex];
               const square = `${file}${rank}`;
               const cell = document.createElement("div");
-              const color = (fileIndex + Number(rank)) % 2 === 1 ? "dark" : "light";
+              const color = (fileIndex + rank) % 2 === 1 ? "dark" : "light";
               cell.className = `server-square ${color}`;
               cell.setAttribute("role", "gridcell");
 
@@ -207,13 +256,20 @@
           const pieceName = board[square];
           elements.cell.setAttribute("aria-label", `${square}${pieceName ? `, ${pieceName}` : ""}`);
           elements.cell.classList.toggle("selected", square === selectedSquare);
-          elements.piece.className = `server-square-piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
-          elements.piece.textContent = pieceSymbols[pieceName] || "";
+          const checkerPiece = pieceName &&
+            (pieceName.startsWith("White-") || pieceName.startsWith("Black-")) &&
+            (pieceName.endsWith("-man") || pieceName.endsWith("-king"));
+          const color = pieceName &&
+            (pieceName.startsWith("white-") || pieceName.startsWith("White-"))
+            ? "white"
+            : "black";
+          elements.piece.className = `server-square-piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
+          elements.piece.textContent = checkerPiece ? "" : pieceSymbols[pieceName] || "";
         }
       }
 
       function renderMoveStatus(state) {
-        turnStatus.textContent = `${state.turn} to move.`;
+        turnStatus.textContent = `${state.gameName} (${state.boardSize}×${state.boardSize}): ${state.turn} to move.`;
         if (!state.lastMove) {
           lastMoveStatus.textContent = "No moves yet.";
           return;
@@ -228,52 +284,15 @@
       }
 
       function renderGameResult(state) {
-        gameResult.hidden = !state.checkmateWinner && !state.resignation;
-        if (state.resignation) {
-          gameResultHeading.textContent = `${state.resignation.resigned.toUpperCase()} RESIGNS`;
-          gameResultWinner.textContent = `${state.resignation.winner.toUpperCase()} WINS`;
-        } else if (state.checkmateWinner) {
-          gameResultHeading.textContent = "CHECKMATE";
-          gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
-        }
+        gameResult.hidden = !state.gameResult;
+        gameResultHeading.textContent = state.gameResult ? state.gameResult.heading : "CHECKMATE";
+        gameResultWinner.textContent = state.gameResult && state.gameResult.winner
+          ? `${state.gameResult.winner.toUpperCase()} WINS`
+          : "";
       }
 
-      undoMoveButton.addEventListener("click", () => {
-        socket.emit("undo-move");
-      });
-
-      blackResignsButton.addEventListener("click", () => {
-        socket.emit("resign", "Black");
-      });
-
-      whiteResignsButton.addEventListener("click", () => {
-        socket.emit("resign", "White");
-      });
-
-      flipBoardButton.addEventListener("click", () => {
-        const flipped = serverBoard.classList.toggle("black-side");
-        flipBoardButton.setAttribute("aria-pressed", String(flipped));
-        flipBoardButton.textContent = flipped ? "Show board for White" : "Flip board for Black";
-      });
-
-      socket.on("connect", () => {
-        status.textContent = "Connected to the server.";
-      });
-
-      socket.on("disconnect", () => {
-        status.textContent = "Disconnected from the server.";
-      });
-
-      socket.on("board-update", (state) => {
-        renderBoard(state.board, state.selectedSquare);
-        renderMoveStatus(state);
-        renderGameResult(state);
-        undoMoveButton.disabled = !state.canUndo || Boolean(state.resignation);
-        blackResignsButton.disabled = Boolean(state.checkmateWinner || state.resignation);
-        whiteResignsButton.disabled = Boolean(state.checkmateWinner || state.resignation);
-      });
-
-      socket.on("devices-update", (devices) => {
+      function renderDevices(devices) {
+        connectedDevices = devices;
         deviceList.textContent = "";
 
         if (devices.length === 0) {
@@ -303,12 +322,12 @@
 
           const squarePicker = document.createElement("div");
           squarePicker.className = "square-picker";
-          const files = "abcdefgh";
-          const ranks = "87654321";
+          squarePicker.style.setProperty("--board-size", currentBoardSize);
+          const files = "abcdefghij";
 
-          for (const rank of ranks) {
-            for (const file of files) {
-              const square = `${file}${rank}`;
+          for (let rank = currentBoardSize; rank >= 1; rank--) {
+            for (let fileIndex = 0; fileIndex < currentBoardSize; fileIndex++) {
+              const square = `${files[fileIndex]}${rank}`;
               const label = document.createElement("label");
               const checkbox = document.createElement("input");
               checkbox.type = "checkbox";
@@ -326,15 +345,66 @@
           saveButton.addEventListener("click", () => {
             const squares = Array.from(squarePicker.querySelectorAll("input:checked"))
               .map((checkbox) => checkbox.value);
+            const squaresForOtherBoardSize = device.squares
+              .filter((square) => !isSquareInsideBoard(square, currentBoardSize));
             socket.emit("save-device-squares", {
               deviceId: device.id,
-              squares
+              squares: [...squares, ...squaresForOtherBoardSize]
             });
           });
           item.appendChild(saveButton);
 
           deviceList.appendChild(item);
         });
+      }
+
+      undoMoveButton.addEventListener("click", () => {
+        socket.emit("undo-move");
+      });
+
+      blackResignsButton.addEventListener("click", () => {
+        socket.emit("resign", "Black");
+      });
+
+      whiteResignsButton.addEventListener("click", () => {
+        socket.emit("resign", "White");
+      });
+
+      gameSelect.addEventListener("change", () => {
+        socket.emit("change-game", gameSelect.value);
+      });
+
+      flipBoardButton.addEventListener("click", () => {
+        const flipped = serverBoard.classList.toggle("black-side");
+        flipBoardButton.setAttribute("aria-pressed", String(flipped));
+        flipBoardButton.textContent = flipped ? "Show board for White" : "Flip board for Black";
+      });
+
+      socket.on("connect", () => {
+        status.textContent = "Connected to the server.";
+      });
+
+      socket.on("disconnect", () => {
+        status.textContent = "Disconnected from the server.";
+      });
+
+      socket.on("board-update", (state) => {
+        const boardSizeChanged = currentBoardSize !== state.boardSize;
+        currentBoardSize = state.boardSize;
+        gameSelect.value = state.game;
+        renderBoard(state.board, state.selectedSquare, state.boardSize);
+        renderMoveStatus(state);
+        renderGameResult(state);
+        undoMoveButton.disabled = !state.canUndo || Boolean(state.resignation);
+        blackResignsButton.disabled = Boolean(state.gameResult);
+        whiteResignsButton.disabled = Boolean(state.gameResult);
+        if (boardSizeChanged) {
+          renderDevices(connectedDevices);
+        }
+      });
+
+      socket.on("devices-update", (devices) => {
+        renderDevices(devices);
       });
     </script>
   </body>

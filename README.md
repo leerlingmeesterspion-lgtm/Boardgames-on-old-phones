@@ -1,6 +1,6 @@
 # Modular Chess
 
-A chess game where old Android phones are used as individual parts of a physical chessboard.
+A board-game system where phones are used as individual parts of a physical board. It currently supports chess and 10×10 International draughts.
 
 ## Idea
 
@@ -87,9 +87,11 @@ Each device row on `/admin` has an **Identify** button. Clicking it sends that d
 
 This is different from `io.emit(...)`, which broadcasts an event to every connected browser. The admin list includes connection IDs so the server can target one connection even if two devices happen to have the same friendly name.
 
-## Assign chessboard squares
+## Assign board squares
 
-Each connected device has an 8-by-8 square picker on `/admin`. Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative chessboard positions, centers them, and sizes them to fit its available screen space. Each phone square shows its coordinate in two opposite corners, with one label upside down, so it can be read from either side. A device assigned only squares on ranks 5 through 8 sees those squares flipped 180 degrees to face the black side, with rank 8 at the bottom and every row reading H-to-A; other assignments keep the white-side orientation. The admin board has a button to flip its view between White's and Black's side. The phone and admin board display solid black pieces rotated 180 degrees and white pieces as white silhouettes. The layout adjusts when the screen is resized or rotated.
+Use the **Game** selector on `/admin` to choose Chess (8×8) or International draughts (10×10). Changing games starts a fresh game. The device square picker changes to match the selected board. A phone shows only the assigned squares that exist on the active board; assignments for larger boards are kept when switching to Chess.
+
+Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative positions, centers them, and sizes them to fit its available screen space. Each phone square shows its coordinate in two opposite corners, with one label upside down, so it can be read from either side. Assignments confined to the far half of the board are flipped 180 degrees to face that side. The admin board has a button to flip its view between players. Chess pieces retain their existing colors and orientation; draughts pieces appear as round counters, with a K marking kings.
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
 
@@ -115,5 +117,11 @@ The **Revert last move** button on `/admin` uses `chess.js` to undo one move. It
 When `chess.js` detects checkmate, `/admin` and all connected phone/tablet pages show a large winner message. Reverting the checkmating move removes that message.
 
 The admin page also has **Black resigns** and **White resigns** buttons beside **Revert last move**. Selecting one ends the game and shows who resigned and who wins on the admin and all connected phone/tablet pages.
+
+## Play International draughts
+
+Choose **International draughts (10×10)** in the admin **Game** selector. The board starts with 20 men for each player on the dark squares. Men move forward but can capture in any diagonal direction; kings move any distance along a diagonal. Captures are required, and when there are choices, the move capturing the most pieces must be chosen. Multi-jumps stay on the same player's turn, and a man becomes a king when it reaches the opposite edge. The admin can revert a complete move or capture sequence. This first version detects wins when a player has no pieces or legal moves; official tournament draw rules are not implemented yet.
+
+Run the focused rules tests with `npm.cmd test`.
 
 To try a capture, assign E2 and E4 to one phone, and D7 and D5 to another. Move E2 to E4, D7 to D5, then E4 to D5. The black pawn should disappear, and the pages should report that White captured it. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.

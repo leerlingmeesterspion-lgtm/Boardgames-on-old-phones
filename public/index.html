@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Modular Chess Server</title>
+    <title>Modular Board Server</title>
     <style>
       * {
         box-sizing: border-box;
@@ -157,6 +157,37 @@
         -webkit-text-stroke: 1px #222;
       }
 
+      .piece.checker-piece {
+        aspect-ratio: 1;
+        border: 2px solid #222;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%), 0 1px 2px #222;
+        display: grid;
+        place-items: center;
+        width: 68%;
+      }
+
+      .piece.checker-piece.black {
+        background: #171717;
+        color: #fff;
+        transform: none;
+        -webkit-text-fill-color: #fff;
+      }
+
+      .piece.checker-piece.white {
+        background: #f8f2e7;
+        color: #222;
+        -webkit-text-fill-color: #222;
+        -webkit-text-stroke: 0;
+      }
+
+      .piece.checker-piece.king::after {
+        content: "K";
+        font-family: sans-serif;
+        font-size: 0.55em;
+        font-weight: bold;
+      }
+
       .square-coordinate {
         bottom: 0.1rem;
         font-size: var(--coordinate-size, 1rem);
@@ -252,12 +283,12 @@
       }
 
       function getSquareColor(square) {
-        if (typeof square !== "string" || !/^[A-H][1-8]$/i.test(square)) {
-          throw new Error(`Invalid chess square: ${square}`);
+        if (typeof square !== "string" || !/^[A-J](10|[1-9])$/i.test(square)) {
+          throw new Error(`Invalid board coordinate: ${square}`);
         }
 
         const colLetter = square.charAt(0).toUpperCase();
-        const rank = Number(square.charAt(1));
+        const rank = Number(square.slice(1));
         const colIndex = colLetter.charCodeAt(0) - "A".charCodeAt(0);
         const sum = colIndex + rank;
 
@@ -265,24 +296,33 @@
       }
 
       function getAssignedSquareBounds() {
-        if (assignedSquareNames.length === 0) {
+        const visibleSquares = assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square));
+        if (visibleSquares.length === 0) {
           return null;
         }
 
-        const fileIndexes = assignedSquareNames.map((square) => square.charCodeAt(0) - "a".charCodeAt(0));
-        const ranks = assignedSquareNames.map((square) => Number(square.charAt(1)));
+        const fileIndexes = visibleSquares.map((square) => square.charCodeAt(0) - "a".charCodeAt(0));
+        const ranks = visibleSquares.map((square) => Number(square.slice(1)));
         const minFile = Math.min(...fileIndexes);
         const maxFile = Math.max(...fileIndexes);
         const minRank = Math.min(...ranks);
         const maxRank = Math.max(...ranks);
+        const boardSize = boardState.boardSize || 8;
 
         return {
           minFile,
           maxRank,
           columns: maxFile - minFile + 1,
           rows: maxRank - minRank + 1,
-          blackSide: ranks.every((rank) => rank >= 5)
+          blackSide: ranks.every((rank) => rank >= boardSize / 2 + 1)
         };
+      }
+
+      function isSquareOnCurrentBoard(square) {
+        const boardSize = boardState.boardSize || 8;
+        const file = square.charCodeAt(0) - "a".charCodeAt(0);
+        const rank = Number(square.slice(1));
+        return file >= 0 && file < boardSize && rank >= 1 && rank <= boardSize;
       }
 
       function fitAssignedSquares() {
@@ -386,8 +426,14 @@
           rectangle.classList.toggle("selected", boardState.selectedSquare === square);
 
           const piece = rectangle.querySelector(".piece");
-          piece.className = `piece ${pieceName && pieceName.startsWith("white-") ? "white" : "black"}`;
-          piece.textContent = pieceSymbols[pieceName] || "";
+          const checkerPiece = pieceName &&
+            (pieceName.startsWith("White-") || pieceName.startsWith("Black-")) &&
+            (pieceName.endsWith("-man") || pieceName.endsWith("-king"));
+          const color = pieceName && (pieceName.startsWith("White-") || pieceName.startsWith("white-"))
+            ? "white"
+            : "black";
+          piece.className = `piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
+          piece.textContent = checkerPiece ? "" : pieceSymbols[pieceName] || "";
         });
       }
 
@@ -396,7 +442,7 @@
         const bounds = getAssignedSquareBounds();
         assignedSquares.classList.toggle("black-side", bounds ? bounds.blackSide : false);
 
-        assignedSquareNames.forEach((square) => {
+        assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square)).forEach((square) => {
           const rectangle = document.createElement("button");
           rectangle.type = "button";
           rectangle.className = `assigned-square ${getSquareColor(square)}`;
@@ -429,7 +475,7 @@
       }
 
       function renderMoveStatus(state) {
-        turnStatus.textContent = `${state.turn} to move.`;
+        turnStatus.textContent = `${state.gameName} (${state.boardSize}×${state.boardSize}): ${state.turn} to move.`;
         if (!state.lastMove) {
           lastMoveStatus.textContent = "No moves yet.";
           return;
@@ -444,14 +490,11 @@
       }
 
       function renderGameResult(state) {
-        gameResult.hidden = !state.checkmateWinner && !state.resignation;
-        if (state.resignation) {
-          gameResultHeading.textContent = `${state.resignation.resigned.toUpperCase()} RESIGNS`;
-          gameResultWinner.textContent = `${state.resignation.winner.toUpperCase()} WINS`;
-        } else if (state.checkmateWinner) {
-          gameResultHeading.textContent = "CHECKMATE";
-          gameResultWinner.textContent = `${state.checkmateWinner.toUpperCase()} WINS`;
-        }
+        gameResult.hidden = !state.gameResult;
+        gameResultHeading.textContent = state.gameResult ? state.gameResult.heading : "CHECKMATE";
+        gameResultWinner.textContent = state.gameResult && state.gameResult.winner
+          ? `${state.gameResult.winner.toUpperCase()} WINS`
+          : "";
       }
 
       let deviceName = localStorage.getItem(storageKey);
@@ -473,10 +516,15 @@
       });
 
       socket.on("board-update", (state) => {
+        const boardSizeChanged = (boardState.boardSize || 8) !== state.boardSize;
         boardState = state;
         renderMoveStatus(state);
         renderGameResult(state);
-        renderAssignedSquareState();
+        if (boardSizeChanged) {
+          renderAssignedSquares();
+        } else {
+          renderAssignedSquareState();
+        }
       });
 
       socket.on("move-rejected", ({ from, to }) => {
