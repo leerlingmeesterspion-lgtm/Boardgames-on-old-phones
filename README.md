@@ -1,4 +1,4 @@
-# Modular Chess
+# Modular Board Games
 
 A board-game system where phones are used as individual parts of a physical board. It currently supports chess and 10×10 International draughts.
 
