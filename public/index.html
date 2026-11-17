@@ -449,7 +449,7 @@
           rectangle.dataset.square = square;
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${boardState.board[square] ? `, ${boardState.board[square]}` : ""}`);
           const filePosition = square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile;
-          const rankPosition = bounds.maxRank - Number(square.charAt(1));
+          const rankPosition = bounds.maxRank - Number(square.slice(1));
           rectangle.style.gridColumn = String(filePosition + 1);
           rectangle.style.gridRow = String(rankPosition + 1);
 

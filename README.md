@@ -122,6 +122,8 @@ The admin page also has **Black resigns** and **White resigns** buttons beside *
 
 Choose **International draughts (10×10)** in the admin **Game** selector. The board starts with 20 men for each player on the dark squares. Men move forward but can capture in any diagonal direction; kings move any distance along a diagonal. Captures are required, and when there are choices, the move capturing the most pieces must be chosen. Multi-jumps stay on the same player's turn, and a man becomes a king when it reaches the opposite edge. The admin can revert a complete move or capture sequence. This first version detects wins when a player has no pieces or legal moves; official tournament draw rules are not implemented yet.
 
+To use two tablets, connect both to the server and select **Assign bottom half** for one tablet and **Assign top half** for the other in `/admin`, then press **Save** for each. The bottom tablet displays ranks 1–5 and the top tablet displays ranks 6–10. Moves can start on one tablet and finish on the other: tap the checker on its tablet, then tap its destination square on whichever tablet shows that square. The same works for each step of a multi-jump.
+
 Run the focused rules tests with `npm.cmd test`.
 
 To try a capture, assign E2 and E4 to one phone, and D7 and D5 to another. Move E2 to E4, D7 to D5, then E4 to D5. The black pawn should disappear, and the pages should report that White captured it. Socket.IO carries the messages, the server manages device assignments and displays, and `chess.js` supplies the chess rules. Board state and square assignments are in memory and reset when the server restarts.
