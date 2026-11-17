@@ -23,7 +23,7 @@ Display a message from a small Express server in a web browser.
 1. Install the current LTS version of Node.js from [nodejs.org](https://nodejs.org/). Then open a new PowerShell window and go to this project folder:
 
    ```powershell
-   cd "C:\Users\Sander Theeuwes\Documents\Chess op telefoon\Chess"
+   cd "C:\Users\Your username \Documents\Chess op telefoon\Chess"
    ```
 
 2. Install the project dependencies:
