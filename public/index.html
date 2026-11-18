@@ -24,14 +24,52 @@
         padding: 0;
       }
 
-      #status,
-      #turn-status,
-      #last-move {
-        flex: 0 0 auto;
+      .visually-hidden {
+        clip: rect(0, 0, 0, 0);
+        clip-path: inset(50%);
+        height: 1px;
+        overflow: hidden;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+      }
+
+      .device-toolbar {
+        bottom: max(0.25rem, env(safe-area-inset-bottom));
+        position: fixed;
+        right: max(0.25rem, env(safe-area-inset-right));
+        z-index: 5;
+      }
+
+      #fullscreen-toggle {
+        background: rgb(255 255 255 / 85%);
+        border: 1px solid #555;
+        border-radius: 0.25rem;
+        font-size: 0.8rem;
+        min-height: 1.6rem;
+        opacity: 0.75;
+        padding: 0.2rem 0.4rem;
+        touch-action: manipulation;
+      }
+
+      #fullscreen-message {
+        background: #fff;
+        border: 1px solid #a00000;
+        border-radius: 0.25rem;
+        color: #a00000;
+        left: 50%;
+        font-size: 0.8rem;
         margin: 0;
-        min-height: 1.2rem;
-        padding: 0.1rem;
+        padding: 0.25rem;
+        position: fixed;
         text-align: center;
+        top: max(0.25rem, env(safe-area-inset-top));
+        transform: translateX(-50%);
+        z-index: 6;
+      }
+
+      #fullscreen-message[hidden] {
+        display: none;
       }
 
       #identify-name {
@@ -67,11 +105,12 @@
 
       #assigned-squares {
         align-content: center;
+        background-color: #769656;
         display: grid;
         flex: 1 1 0;
         gap: 0;
-        grid-template-columns: repeat(var(--columns, 1), var(--square-size, 7rem));
-        grid-template-rows: repeat(var(--rows, 1), var(--square-size, 7rem));
+        grid-template-columns: repeat(var(--columns, 1), var(--square-width, 7rem));
+        grid-template-rows: repeat(var(--rows, 1), var(--square-height, 7rem));
         justify-content: center;
         min-height: 0;
         width: 100%;
@@ -88,14 +127,14 @@
         display: flex;
         flex-direction: column;
         font-family: inherit;
-        height: var(--square-size, 7rem);
+        height: var(--square-height, 7rem);
         justify-content: center;
         min-height: 0;
         min-width: 0;
         padding: 0;
         position: relative;
         touch-action: manipulation;
-        width: var(--square-size, 7rem);
+        width: var(--square-width, 7rem);
       }
 
       .assigned-square.light {
@@ -130,9 +169,13 @@
         border: 3px solid #2a7b36;
         border-radius: 50%;
         content: "";
-        inset: 12%;
+        height: var(--morris-point-size, 4rem);
+        left: 50%;
         pointer-events: none;
         position: absolute;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: var(--morris-point-size, 4rem);
       }
 
       .assigned-square.morris-point.selected::before {
@@ -155,15 +198,23 @@
       }
 
       #assigned-squares.morris-board {
+        background-color: #f0d9b5;
+        grid-template-columns: repeat(var(--columns, 1), var(--morris-square-size, 7rem));
+        grid-template-rows: repeat(var(--rows, 1), var(--morris-square-size, 7rem));
         position: relative;
       }
 
+      #assigned-squares.morris-board .assigned-square {
+        height: var(--morris-square-size, 7rem);
+        width: var(--morris-square-size, 7rem);
+      }
+
       #assigned-squares.morris-board .morris-lines {
-        height: calc(var(--rows, 1) * var(--square-size, 7rem));
+        height: calc(var(--rows, 1) * var(--morris-square-size, 7rem));
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        width: calc(var(--columns, 1) * var(--square-size, 7rem));
+        width: calc(var(--columns, 1) * var(--morris-square-size, 7rem));
       }
 
       .morris-lines {
@@ -206,16 +257,15 @@
       }
 
       .piece.checker-piece {
-        aspect-ratio: 1;
         border: 2px solid #222;
         border-radius: 50%;
         box-sizing: border-box;
         box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%), 0 1px 2px #222;
         display: grid;
-        flex: 0 0 68%;
-        height: auto;
+        flex: 0 0 var(--checker-piece-size, 4rem);
+        height: var(--checker-piece-size, 4rem);
         place-items: center;
-        width: 68%;
+        width: var(--checker-piece-size, 4rem);
       }
 
       .piece.checker-piece.black {
@@ -275,12 +325,24 @@
           background-color: #fff8cc;
         }
       }
+
+      :fullscreen {
+        background: #fff;
+      }
+
+      :-webkit-full-screen {
+        background: #fff;
+      }
     </style>
   </head>
   <body>
-    <p id="status">Connecting to the server...</p>
-    <p id="turn-status">Waiting for the board...</p>
-    <p id="last-move">No moves yet.</p>
+    <div class="device-toolbar">
+      <p id="status" class="visually-hidden" aria-live="polite">Connecting to the server...</p>
+      <button id="fullscreen-toggle" type="button" aria-pressed="false">Full screen</button>
+    </div>
+    <p id="fullscreen-message" role="status" hidden></p>
+    <p id="turn-status" class="visually-hidden" aria-live="polite">Waiting for the board...</p>
+    <p id="last-move" class="visually-hidden" aria-live="polite">No moves yet.</p>
     <h1 id="identify-name" hidden></h1>
     <div id="assigned-squares"></div>
     <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
@@ -296,6 +358,9 @@
       const animals = ["FOX", "PANDA", "TIGER", "OWL", "LION", "KOALA", "OTTER", "EAGLE", "WOLF", "BEAR"];
       const socket = io();
       const status = document.getElementById("status");
+      const fullscreenToggle = document.getElementById("fullscreen-toggle");
+      const fullscreenMessage = document.getElementById("fullscreen-message");
+      const deviceToolbar = document.querySelector(".device-toolbar");
       const turnStatus = document.getElementById("turn-status");
       const lastMoveStatus = document.getElementById("last-move");
       const identifyName = document.getElementById("identify-name");
@@ -383,15 +448,21 @@
 
         const availableWidth = assignedSquares.clientWidth;
         const availableHeight = assignedSquares.clientHeight;
-        const gap = parseFloat(window.getComputedStyle(assignedSquares).gap) || 0;
-        const widthPerSquare = (availableWidth - gap * (bounds.columns - 1)) / bounds.columns;
-        const heightPerSquare = (availableHeight - gap * (bounds.rows - 1)) / bounds.rows;
+        const widthPerSquare = availableWidth / bounds.columns;
+        const heightPerSquare = availableHeight / bounds.rows;
         const size = Math.max(0, Math.floor(Math.min(widthPerSquare, heightPerSquare)));
 
         assignedSquares.style.setProperty("--columns", bounds.columns);
         assignedSquares.style.setProperty("--rows", bounds.rows);
-        assignedSquares.style.setProperty("--square-size", `${size}px`);
+        assignedSquares.style.setProperty("--square-width", `${widthPerSquare}px`);
+        assignedSquares.style.setProperty("--square-height", `${heightPerSquare}px`);
+        assignedSquares.style.setProperty(
+          "--morris-square-size",
+          `${Math.max(0, Math.floor(Math.min(widthPerSquare, heightPerSquare)))}px`
+        );
         assignedSquares.style.setProperty("--piece-size", `${size * 0.6}px`);
+        assignedSquares.style.setProperty("--checker-piece-size", `${size * 0.68}px`);
+        assignedSquares.style.setProperty("--morris-point-size", `${size * 0.76}px`);
         assignedSquares.style.setProperty("--coordinate-size", `${Math.min(20, Math.max(12, size * 0.1))}px`);
       }
 
@@ -401,6 +472,80 @@
           : window.innerHeight;
         document.documentElement.style.setProperty("--viewport-height", `${viewportHeight}px`);
         fitAssignedSquares();
+      }
+
+      function isDocumentFullscreen() {
+        return document.fullscreenElement === document.documentElement ||
+          document.webkitFullscreenElement === document.documentElement;
+      }
+
+      function updateFullscreenButton() {
+        const isMorris = boardState.game === "morris";
+        const installedApp = window.navigator.standalone === true;
+        const fullscreen = isDocumentFullscreen() || installedApp;
+        fullscreenToggle.hidden = isMorris;
+        fullscreenToggle.textContent = installedApp
+          ? "Full screen enabled"
+          : fullscreen ? "Exit full screen" : "Full screen";
+        fullscreenToggle.disabled = installedApp;
+        fullscreenToggle.setAttribute("aria-pressed", String(fullscreen));
+        if (isDocumentFullscreen()) {
+          fullscreenMessage.hidden = true;
+        }
+      }
+
+      async function exitFullscreenForMorris() {
+        const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+        if (!exitFullscreen) {
+          fullscreenMessage.textContent = "Use your browser's controls to leave full screen.";
+          fullscreenMessage.hidden = false;
+          return;
+        }
+
+        try {
+          await exitFullscreen.call(document);
+        } catch (error) {
+          fullscreenMessage.textContent = "Use your browser's controls to leave full screen.";
+          fullscreenMessage.hidden = false;
+        }
+      }
+
+      async function toggleFullscreen() {
+        fullscreenMessage.hidden = true;
+        const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+        if (isDocumentFullscreen()) {
+          if (!exitFullscreen) {
+            fullscreenMessage.textContent = "Use your browser's controls to leave full screen.";
+            fullscreenMessage.hidden = false;
+            return;
+          }
+          try {
+            await exitFullscreen.call(document);
+          } catch (error) {
+            fullscreenMessage.textContent = "This browser could not leave full screen. Use its browser controls instead.";
+            fullscreenMessage.hidden = false;
+          }
+          return;
+        }
+
+        if (window.navigator.standalone === true) {
+          return;
+        }
+
+        const requestFullscreen = document.documentElement.requestFullscreen ||
+          document.documentElement.webkitRequestFullscreen;
+        if (!requestFullscreen) {
+          fullscreenMessage.textContent = "Full screen is not supported here. Use your browser's full-screen option.";
+          fullscreenMessage.hidden = false;
+          return;
+        }
+
+        try {
+          await requestFullscreen.call(document.documentElement);
+        } catch (error) {
+          fullscreenMessage.textContent = "Full screen was blocked. Try your browser's full-screen option.";
+          fullscreenMessage.hidden = false;
+        }
       }
 
       function renderAssignedSquareState() {
@@ -553,6 +698,10 @@
       socket.on("board-update", (state) => {
         const boardSizeChanged = (boardState.boardSize || 8) !== state.boardSize;
         boardState = state;
+        if (state.game === "morris" && isDocumentFullscreen()) {
+          exitFullscreenForMorris();
+        }
+        updateFullscreenButton();
         renderMoveStatus(state);
         renderGameResult(state);
         if (boardSizeChanged) {
@@ -573,12 +722,14 @@
       socket.on("identify", () => {
         window.clearTimeout(identifyTimer);
         document.body.classList.add("identifying");
+        deviceToolbar.hidden = true;
         status.hidden = true;
         identifyName.textContent = deviceName;
         identifyName.hidden = false;
 
         identifyTimer = window.setTimeout(() => {
           document.body.classList.remove("identifying");
+          deviceToolbar.hidden = false;
           status.hidden = false;
           identifyName.hidden = true;
         }, 5000);
@@ -591,10 +742,24 @@
         }
       });
 
+      fullscreenToggle.addEventListener("click", toggleFullscreen);
+      document.addEventListener("fullscreenchange", () => {
+        updateFullscreenButton();
+        window.requestAnimationFrame(updateViewportLayout);
+      });
+      document.addEventListener("webkitfullscreenchange", () => {
+        updateFullscreenButton();
+        window.requestAnimationFrame(updateViewportLayout);
+      });
       window.addEventListener("resize", updateViewportLayout);
+      window.addEventListener("orientationchange", updateViewportLayout);
       if (window.visualViewport) {
         window.visualViewport.addEventListener("resize", updateViewportLayout);
       }
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(fitAssignedSquares).observe(assignedSquares);
+      }
+      updateFullscreenButton();
       updateViewportLayout();
     </script>
   </body>
