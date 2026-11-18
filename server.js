@@ -4,6 +4,7 @@ const path = require("node:path");
 const { Server } = require("socket.io");
 const { Chess } = require("chess.js");
 const { CheckersGame, SIZE: CHECKERS_SIZE } = require("./games/checkers");
+const { MorrisGame, points: MORRIS_POINTS } = require("./games/morris");
 
 const app = express();
 const server = http.createServer(app);
@@ -12,6 +13,7 @@ const port = 3000;
 const devices = new Map();
 let chess = new Chess();
 let checkers = new CheckersGame();
+let morris = new MorrisGame();
 let currentGame = "chess";
 let checkersLastMove = null;
 const pieceNames = {
@@ -28,11 +30,17 @@ let selectedSquare = null;
 let resignation = null;
 
 function getCurrentGameName() {
-  return currentGame === "chess" ? "Chess" : "International Draughts";
+  if (currentGame === "chess") {
+    return "Chess";
+  }
+  return currentGame === "checkers" ? "International Draughts" : "Nine Men's Morris";
 }
 
 function getBoardSize() {
-  return currentGame === "chess" ? 8 : CHECKERS_SIZE;
+  if (currentGame === "chess") {
+    return 8;
+  }
+  return currentGame === "checkers" ? CHECKERS_SIZE : 7;
 }
 
 function getChessBoard() {
@@ -77,14 +85,45 @@ function getGameResult() {
     }
   }
 
+  if (currentGame === "morris") {
+    const winner = morris.getWinner();
+    if (winner) {
+      const currentPlayerPieces = MORRIS_POINTS.filter((point) =>
+        morris.board[point] === `${morris.turn}-stone`
+      ).length;
+      return {
+        heading: currentPlayerPieces < 3 ? "FEWER THAN THREE PIECES" : "NO LEGAL MOVES",
+        winner
+      };
+    }
+  }
+
   return null;
 }
 
 function getBoardState() {
   const isChess = currentGame === "chess";
-  const board = isChess ? getChessBoard() : checkers.board;
+  const isCheckers = currentGame === "checkers";
+  const board = isChess ? getChessBoard() : isCheckers ? checkers.board : morris.board;
   const history = chess.history({ verbose: true });
-  const turn = isChess ? (chess.turn() === "w" ? "White" : "Black") : checkers.turn;
+  const turn = isChess
+    ? (chess.turn() === "w" ? "White" : "Black")
+    : isCheckers ? checkers.turn : morris.turn;
+  const lastMove = isChess
+    ? (history.length > 0
+      ? {
+        color: history[history.length - 1].color === "w" ? "White" : "Black",
+        from: history[history.length - 1].from,
+        to: history[history.length - 1].to,
+        capturedPiece: history[history.length - 1].captured
+          ? pieceNames[history[history.length - 1].captured]
+          : null,
+        capturedColor: history[history.length - 1].captured
+          ? (history[history.length - 1].color === "w" ? "Black" : "White")
+          : null
+      }
+      : null)
+    : isCheckers ? checkersLastMove : morris.lastMove;
 
   return {
     board,
@@ -93,22 +132,24 @@ function getBoardState() {
     boardSize: getBoardSize(),
     selectedSquare,
     turn,
-    lastMove: isChess
-      ? (history.length > 0
-        ? {
-          color: history[history.length - 1].color === "w" ? "White" : "Black",
-          from: history[history.length - 1].from,
-          to: history[history.length - 1].to,
-          capturedPiece: history[history.length - 1].captured
-            ? pieceNames[history[history.length - 1].captured]
-            : null,
-          capturedColor: history[history.length - 1].captured
-            ? (history[history.length - 1].color === "w" ? "Black" : "White")
-            : null
-        }
-        : null)
-      : checkersLastMove,
-    canUndo: isChess ? history.length > 0 : checkers.history.length > 0,
+    lastMove,
+    phase: currentGame === "morris" ? morris.phase : null,
+    piecesToPlace: currentGame === "morris"
+      ? { White: 9 - morris.placed.White, Black: 9 - morris.placed.Black }
+      : null,
+    pendingCapture: currentGame === "morris" && morris.pendingCapture,
+    selectableSquares: currentGame === "morris"
+      ? (morris.pendingCapture
+        ? morris.getCapturablePoints()
+        : morris.phase === "placing"
+          ? MORRIS_POINTS.filter((point) => morris.board[point] === null)
+          : morris.getLegalMoves(selectedSquare))
+      : [],
+    canUndo: isChess
+      ? history.length > 0
+      : isCheckers
+        ? checkers.history.length > 0
+        : morris.history.length > 0,
     checkmateWinner: isChess && chess.isCheckmate()
       ? (chess.turn() === "w" ? "Black" : "White")
       : null,
@@ -129,6 +170,9 @@ function isSquareOnCurrentBoard(square) {
   if (!isValidSquare(square)) {
     return false;
   }
+  if (currentGame === "morris") {
+    return MORRIS_POINTS.includes(square);
+  }
   const file = square.charCodeAt(0) - "a".charCodeAt(0);
   const rank = Number(square.slice(1));
   return file < getBoardSize() && rank <= getBoardSize();
@@ -142,12 +186,16 @@ function getConnectedDevices() {
       connectedDevices.push({
         id: device.socketId,
         name,
-        squares: device.squares
+        squares: getDeviceSquares(device)
       });
     }
   }
 
   return connectedDevices;
+}
+
+function getDeviceSquares(device) {
+  return currentGame === "morris" ? device.morrisSquares : device.squares;
 }
 
 function getDeviceBySocketId(socketId) {
@@ -166,7 +214,9 @@ function areValidSquares(squares) {
   const uniqueSquares = new Set(squares);
 
   return uniqueSquares.size === squares.length &&
-    squares.every(isValidSquare);
+    squares.every((square) => currentGame === "morris"
+      ? MORRIS_POINTS.includes(square)
+      : isValidSquare(square));
 }
 
 function isGameOver() {
@@ -283,6 +333,69 @@ function handleCheckersSquareTap(socket, square) {
   broadcastBoardState();
 }
 
+function handleMorrisSquareTap(socket, square) {
+  if (morris.pendingCapture) {
+    const result = morris.capture(square);
+    if (!result) {
+      socket.emit("move-rejected", { from: "mill", to: square });
+      return;
+    }
+
+    selectedSquare = null;
+    console.log(`${result.capturedColor} piece removed from ${square.toUpperCase()}`);
+    broadcastBoardState();
+    return;
+  }
+
+  if (morris.phase === "placing") {
+    const result = morris.place(square);
+    if (!result) {
+      socket.emit("move-rejected", { from: "place", to: square });
+      return;
+    }
+
+    selectedSquare = null;
+    console.log(`${result.color} placed a stone on ${square.toUpperCase()}`);
+    broadcastBoardState();
+    return;
+  }
+
+  if (selectedSquare === null) {
+    if (morris.getLegalMoves(square).length > 0) {
+      selectedSquare = square;
+      broadcastBoardState();
+    }
+    return;
+  }
+
+  if (square === selectedSquare) {
+    selectedSquare = null;
+    broadcastBoardState();
+    return;
+  }
+
+  if (morris.board[square] === `${morris.turn}-stone`) {
+    if (morris.getLegalMoves(square).length > 0) {
+      selectedSquare = square;
+      broadcastBoardState();
+    }
+    return;
+  }
+
+  const fromSquare = selectedSquare;
+  const result = morris.move(fromSquare, square);
+  if (!result) {
+    selectedSquare = null;
+    socket.emit("move-rejected", { from: fromSquare, to: square });
+    broadcastBoardState();
+    return;
+  }
+
+  selectedSquare = null;
+  console.log(`${result.color} moved ${fromSquare.toUpperCase()} to ${square.toUpperCase()}`);
+  broadcastBoardState();
+}
+
 function broadcastDeviceNames() {
   io.emit("devices-update", getConnectedDevices());
 }
@@ -314,12 +427,12 @@ io.on("connection", (socket) => {
 
     let device = devices.get(deviceName);
     if (!device) {
-      device = { socketId: null, squares: [] };
+      device = { socketId: null, squares: [], morrisSquares: [] };
     }
     device.socketId = socket.id;
     devices.set(deviceName, device);
     socket.data.deviceName = deviceName;
-    socket.emit("squares-update", device.squares);
+    socket.emit("squares-update", getDeviceSquares(device));
     console.log(`${deviceName} connected`);
     broadcastDeviceNames();
   });
@@ -347,13 +460,17 @@ io.on("connection", (socket) => {
       return;
     }
 
-    device.squares = squares;
-    io.to(deviceId).emit("squares-update", device.squares);
+    if (currentGame === "morris") {
+      device.morrisSquares = squares;
+    } else {
+      device.squares = squares;
+    }
+    io.to(deviceId).emit("squares-update", getDeviceSquares(device));
     broadcastDeviceNames();
   });
 
   socket.on("change-game", (game) => {
-    if (socket.data.deviceName || (game !== "chess" && game !== "checkers")) {
+    if (socket.data.deviceName || !["chess", "checkers", "morris"].includes(game)) {
       console.warn(`Ignored invalid game change request from ${socket.id}`);
       return;
     }
@@ -365,12 +482,18 @@ io.on("connection", (socket) => {
     currentGame = game;
     chess = new Chess();
     checkers = new CheckersGame();
+    morris = new MorrisGame();
     selectedSquare = null;
     resignation = null;
     checkersLastMove = null;
     console.log(`Game changed to ${getCurrentGameName()}; started a new game`);
     broadcastBoardState();
     broadcastDeviceNames();
+    for (const device of devices.values()) {
+      if (device.socketId) {
+        io.to(device.socketId).emit("squares-update", getDeviceSquares(device));
+      }
+    }
   });
 
   socket.on("undo-move", () => {
@@ -391,13 +514,19 @@ io.on("connection", (socket) => {
         return;
       }
       console.log(`Move undone: ${undoneMove.san}`);
-    } else {
+    } else if (currentGame === "checkers") {
       if (!checkers.undo()) {
         console.warn(`Ignored undo request with no moves from ${socket.id}`);
         return;
       }
       checkersLastMove = null;
       console.log("International draughts turn undone");
+    } else {
+      if (!morris.undo()) {
+        console.warn(`Ignored undo request with no moves from ${socket.id}`);
+        return;
+      }
+      console.log("Nine Men's Morris turn undone");
     }
 
     selectedSquare = null;
@@ -430,7 +559,7 @@ io.on("connection", (socket) => {
       !isSquareOnCurrentBoard(square) ||
       !device ||
       device.socketId !== socket.id ||
-      !device.squares.includes(square)
+      !getDeviceSquares(device).includes(square)
     ) {
       console.warn(`Ignored square tap from unassigned device ${socket.id}`);
       return;
@@ -443,8 +572,10 @@ io.on("connection", (socket) => {
 
     if (currentGame === "chess") {
       handleChessSquareTap(socket, square);
-    } else {
+    } else if (currentGame === "checkers") {
       handleCheckersSquareTap(socket, square);
+    } else {
+      handleMorrisSquareTap(socket, square);
     }
   });
 
@@ -452,7 +583,7 @@ io.on("connection", (socket) => {
     const deviceName = socket.data.deviceName;
     const device = deviceName ? devices.get(deviceName) : undefined;
     if (device && device.socketId === socket.id) {
-      if (device.squares.includes(selectedSquare)) {
+      if (getDeviceSquares(device).includes(selectedSquare)) {
         selectedSquare = null;
         broadcastBoardState();
       }

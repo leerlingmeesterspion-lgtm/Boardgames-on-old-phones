@@ -1,6 +1,6 @@
 # Modular Board Games
 
-A board-game system where phones are used as individual parts of a physical board. It currently supports chess and 10×10 International draughts.
+A board-game system where phones are used as individual parts of a physical board. It currently supports chess, 10×10 International draughts, and Nine Men's Morris.
 
 ## Idea
 
@@ -89,7 +89,7 @@ This is different from `io.emit(...)`, which broadcasts an event to every connec
 
 ## Assign board squares
 
-Use the **Game** selector on `/admin` to choose Chess (8×8) or International draughts (10×10). Changing games starts a fresh game. The device square picker changes to match the selected board. A phone shows only the assigned squares that exist on the active board; assignments for larger boards are kept when switching to Chess.
+Use the **Game** selector on `/admin` to choose Chess (8×8), International draughts (10×10), or Nine Men's Morris. Changing games starts a fresh game. The device square picker changes to match the selected board. A phone shows only the assigned squares that exist on the active board; assignments for larger boards are kept when switching between Chess and draughts. Morris assignments are stored separately from those square assignments.
 
 Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative positions, centers them, and sizes them to fit its available screen space. Each phone square shows its coordinate in two opposite corners, with one label upside down, so it can be read from either side. Assignments confined to the far half of the board are flipped 180 degrees to face that side. The admin board has a button to flip its view between players. Chess pieces retain their existing colors and orientation; draughts pieces appear as round counters, with a K marking kings.
 
@@ -116,6 +116,12 @@ The admin page also has **Black resigns** and **White resigns** buttons beside *
 Choose **International draughts (10×10)** in the admin **Game** selector. The board starts with 20 men for each player on the dark squares. Men move forward but can capture in any diagonal direction; kings move any distance along a diagonal. Captures are required, and when there are choices, the move capturing the most pieces must be chosen. Multi-jumps stay on the same player's turn, and a man becomes a king when it reaches the opposite edge. The admin can revert a complete move or capture sequence. This first version detects wins when a player has no pieces or legal moves; official tournament draw rules are not implemented yet.
 
 To use two tablets, connect both to the server and select **Assign bottom half** for one tablet and **Assign top half** for the other in `/admin`, then press **Save** for each. The bottom tablet displays ranks 1–5 and the top tablet displays ranks 6–10. Moves can start on one tablet and finish on the other: tap the checker on its tablet, then tap its destination square on whichever tablet shows that square. The same works for each step of a multi-jump.
+
+## Play Nine Men's Morris
+
+Choose **Nine Men's Morris** in the admin **Game** selector. The board shows its 24 points and connecting lines. Use **Assign left half** for one device and **Assign right half** for another (or choose points individually), then save both assignments. A point is drawn on a device only when assigned there; connecting lines appear when both ends are assigned to that device.
+
+Players take turns placing nine stones. Making a row of three forms a mill and lets that player remove one opposing stone; stones in a mill are protected unless all opposing stones are in mills. After all stones are placed, select one of your stones and tap an adjacent empty point. Once a player has only three stones, they may fly to any empty point. A player loses with fewer than three stones or when none of their stones can move. The **Revert last move** button undoes a complete placement or movement turn, including its mill capture. Automatic draw rules are not included.
 
 Run the focused rules tests with `npm.cmd test`.
 

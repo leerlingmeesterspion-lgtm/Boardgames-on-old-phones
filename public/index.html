@@ -115,6 +115,78 @@
         outline-offset: 2px;
       }
 
+      .assigned-square.legal-target {
+        outline: 3px solid #2a7b36;
+        outline-offset: -3px;
+      }
+
+      .assigned-square.morris-point.legal-target,
+      .assigned-square.morris-point.selected {
+        outline: none;
+      }
+
+      .assigned-square.morris-point.legal-target::before,
+      .assigned-square.morris-point.selected::before {
+        border: 3px solid #2a7b36;
+        border-radius: 50%;
+        content: "";
+        inset: 12%;
+        pointer-events: none;
+        position: absolute;
+      }
+
+      .assigned-square.morris-point.selected::before {
+        border-color: #e6a700;
+      }
+
+      .morris-dot {
+        aspect-ratio: 1;
+        background: #222;
+        border-radius: 50%;
+        left: 50%;
+        position: absolute;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 12%;
+      }
+
+      .morris-dot[hidden] {
+        display: none;
+      }
+
+      #assigned-squares.morris-board {
+        position: relative;
+      }
+
+      #assigned-squares.morris-board .morris-lines {
+        height: calc(var(--rows, 1) * var(--square-size, 7rem));
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: calc(var(--columns, 1) * var(--square-size, 7rem));
+      }
+
+      .morris-lines {
+        height: 100%;
+        inset: 0;
+        overflow: visible;
+        pointer-events: none;
+        position: absolute;
+        width: 100%;
+        z-index: 0;
+      }
+
+      .morris-lines line {
+        stroke: #222;
+        stroke-width: 0.045;
+      }
+
+      .assigned-square.morris-point {
+        background: transparent;
+        border: 0;
+        z-index: 1;
+      }
+
       .piece {
         font-size: var(--piece-size, 4rem);
         font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", sans-serif;
@@ -217,6 +289,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/morris-layout.js"></script>
     <script>
       const storageKey = "modular-chess-device-name";
       const colors = ["BLUE", "RED", "GREEN", "GOLD", "PURPLE", "SILVER", "ORANGE", "WHITE", "BLACK", "TEAL"];
@@ -254,6 +327,9 @@
       }
 
       function getSquareColor(square) {
+        if (boardState.game === "morris") {
+          return "light";
+        }
         if (typeof square !== "string" || !/^[A-J](10|[1-9])$/i.test(square)) {
           throw new Error(`Invalid board coordinate: ${square}`);
         }
@@ -290,6 +366,9 @@
       }
 
       function isSquareOnCurrentBoard(square) {
+        if (boardState.game === "morris") {
+          return MorrisLayout.pointSet.has(square);
+        }
         const boardSize = boardState.boardSize || 8;
         const file = square.charCodeAt(0) - "a".charCodeAt(0);
         const rank = Number(square.slice(1));
@@ -327,18 +406,29 @@
       function renderAssignedSquareState() {
         Array.from(assignedSquares.children).forEach((rectangle) => {
           const square = rectangle.dataset.square;
+          if (!square) {
+            return;
+          }
           const pieceName = boardState.board[square];
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${pieceName ? `, ${pieceName}` : ""}`);
           rectangle.classList.toggle("selected", boardState.selectedSquare === square);
+          rectangle.classList.toggle(
+            "legal-target",
+            Boolean(boardState.selectableSquares && boardState.selectableSquares.includes(square))
+          );
 
           const piece = rectangle.querySelector(".piece");
+          const pointMarker = rectangle.querySelector(".morris-dot");
+          if (pointMarker) {
+            pointMarker.hidden = Boolean(pieceName);
+          }
           const checkerPiece = pieceName &&
             (pieceName.startsWith("White-") || pieceName.startsWith("Black-")) &&
-            (pieceName.endsWith("-man") || pieceName.endsWith("-king"));
+            (pieceName.endsWith("-man") || pieceName.endsWith("-king") || pieceName.endsWith("-stone"));
           const color = pieceName && (pieceName.startsWith("White-") || pieceName.startsWith("white-"))
             ? "white"
             : "black";
-          piece.className = `piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
+          piece.className = `piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-stone") ? " morris-stone" : ""}${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
           piece.textContent = checkerPiece ? "" : pieceSymbols[pieceName] || "";
         });
       }
@@ -347,13 +437,39 @@
         assignedSquares.textContent = "";
         const bounds = getAssignedSquareBounds();
         assignedSquares.classList.toggle("black-side", bounds ? bounds.blackSide : false);
+        assignedSquares.classList.toggle("morris-board", boardState.game === "morris");
+
+        if (bounds && boardState.game === "morris") {
+          const assigned = new Set(assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square)));
+          const lines = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          lines.classList.add("morris-lines");
+          lines.setAttribute("viewBox", `0 0 ${bounds.columns} ${bounds.rows}`);
+          lines.setAttribute("aria-hidden", "true");
+          for (const [first, second] of MorrisLayout.edges) {
+            if (!assigned.has(first) || !assigned.has(second)) {
+              continue;
+            }
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", String(first.charCodeAt(0) - 97 - bounds.minFile + 0.5));
+            line.setAttribute("y1", String(bounds.maxRank - Number(first.slice(1)) + 0.5));
+            line.setAttribute("x2", String(second.charCodeAt(0) - 97 - bounds.minFile + 0.5));
+            line.setAttribute("y2", String(bounds.maxRank - Number(second.slice(1)) + 0.5));
+            lines.appendChild(line);
+          }
+          assignedSquares.appendChild(lines);
+        }
 
         assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square)).forEach((square) => {
           const rectangle = document.createElement("button");
           rectangle.type = "button";
-          rectangle.className = `assigned-square ${getSquareColor(square)}`;
+          rectangle.className = `assigned-square ${getSquareColor(square)}${boardState.game === "morris" ? " morris-point" : ""}`;
           rectangle.dataset.square = square;
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${boardState.board[square] ? `, ${boardState.board[square]}` : ""}`);
+          if (boardState.game === "morris") {
+            const pointMarker = document.createElement("span");
+            pointMarker.className = "morris-dot";
+            rectangle.appendChild(pointMarker);
+          }
           const filePosition = square.charCodeAt(0) - "a".charCodeAt(0) - bounds.minFile;
           const rankPosition = bounds.maxRank - Number(square.slice(1));
           rectangle.style.gridColumn = String(filePosition + 1);
@@ -382,14 +498,27 @@
 
       function renderMoveStatus(state) {
         turnStatus.textContent = `${state.gameName} (${state.boardSize}×${state.boardSize}): ${state.turn} to move.`;
+        if (state.game === "morris") {
+          if (state.pendingCapture) {
+            turnStatus.textContent = `${state.turn} formed a mill. Tap an opposing piece to remove it.`;
+          } else if (state.phase === "placing") {
+            turnStatus.textContent = `${state.turn} to place a stone (${state.piecesToPlace[state.turn]} remaining).`;
+          } else {
+            turnStatus.textContent = `${state.turn} to move. Select a stone, then tap an empty point.`;
+          }
+        }
         if (!state.lastMove) {
           lastMoveStatus.textContent = "No moves yet.";
           return;
         }
 
         const move = state.lastMove;
-        const description = `${move.color} moved ${move.from.toUpperCase()} to ${move.to.toUpperCase()}`;
-        const capture = move.capturedPiece
+        const description = move.action === "placed"
+          ? `${move.color} placed a stone on ${move.to.toUpperCase()}`
+          : `${move.color} moved ${move.from.toUpperCase()} to ${move.to.toUpperCase()}`;
+        const capture = move.capturedPoint
+          ? `, capturing a piece on ${move.capturedPoint.toUpperCase()}`
+          : move.capturedPiece
           ? `, capturing a ${move.capturedColor.toLowerCase()} ${move.capturedPiece}`
           : "";
         lastMoveStatus.textContent = `${description}${capture}.`;
