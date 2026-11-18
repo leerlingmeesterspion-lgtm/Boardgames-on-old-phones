@@ -209,6 +209,117 @@
         width: var(--morris-square-size, 7rem);
       }
 
+      #assigned-squares.ludo-board {
+        background-color: #d7d7d7;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type="empty"] {
+        background: #d7d7d7;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type="track"],
+      .assigned-square.ludo-cell[data-ludo-type="safe"] {
+        background: #fff;
+        color: #222;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type="safe"]::after {
+        color: #666;
+        content: "★";
+        font-size: 0.8em;
+        position: absolute;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type^="yard-red"],
+      .assigned-square.ludo-cell[data-ludo-type^="lane-red"],
+      .assigned-square.ludo-cell[data-ludo-type="goal-red"] {
+        background: #f3a5a5;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type^="yard-blue"],
+      .assigned-square.ludo-cell[data-ludo-type^="lane-blue"],
+      .assigned-square.ludo-cell[data-ludo-type="goal-blue"] {
+        background: #9dc8f6;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type^="yard-yellow"],
+      .assigned-square.ludo-cell[data-ludo-type^="lane-yellow"],
+      .assigned-square.ludo-cell[data-ludo-type="goal-yellow"] {
+        background: #f6e58d;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type^="yard-green"],
+      .assigned-square.ludo-cell[data-ludo-type^="lane-green"],
+      .assigned-square.ludo-cell[data-ludo-type="goal-green"] {
+        background: #9ed5a0;
+      }
+
+      .assigned-square.ludo-cell[data-ludo-type="center"] {
+        background: conic-gradient(#4caf50 0 25%, #fbc02d 0 50%, #2196f3 0 75%, #e53935 0);
+      }
+
+      .piece.ludo-piece {
+        align-items: center;
+        border: 1px solid #222;
+        border-radius: 50%;
+        box-sizing: border-box;
+        display: flex;
+        font-family: sans-serif;
+        font-size: calc(var(--piece-size, 4rem) * 0.55);
+        font-weight: bold;
+        height: 72%;
+        justify-content: center;
+        line-height: 1;
+        position: relative;
+        width: 72%;
+        z-index: 1;
+      }
+
+      .piece.ludo-piece.red { background: #e53935; color: #fff; }
+      .piece.ludo-piece.blue { background: #1976d2; color: #fff; }
+      .piece.ludo-piece.yellow { background: #fbc02d; color: #222; }
+      .piece.ludo-piece.green { background: #43a047; color: #fff; }
+      .piece.ludo-piece.multi { color: #fff; }
+
+      #dice-panel {
+        align-items: center;
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        justify-content: center;
+        text-align: center;
+      }
+
+      #dice-panel[hidden] {
+        display: none;
+      }
+
+      #dice-status {
+        font-size: clamp(1.25rem, 5vw, 3rem);
+      }
+
+      #dice-value {
+        align-items: center;
+        background: #fff;
+        border: 3px solid #222;
+        border-radius: 0.5rem;
+        display: flex;
+        font-size: clamp(5rem, 25vw, 12rem);
+        height: min(45vw, 45vh);
+        justify-content: center;
+        margin: 0.5rem;
+        min-height: 6rem;
+        min-width: 6rem;
+        width: min(45vw, 45vh);
+      }
+
+      #roll-ludo-die {
+        font-size: clamp(1.25rem, 5vw, 2rem);
+        min-height: 3rem;
+        padding: 0.5rem 1.5rem;
+        touch-action: manipulation;
+      }
+
       #assigned-squares.morris-board .morris-lines {
         height: calc(var(--rows, 1) * var(--morris-square-size, 7rem));
         left: 50%;
@@ -345,6 +456,11 @@
     <p id="last-move" class="visually-hidden" aria-live="polite">No moves yet.</p>
     <h1 id="identify-name" hidden></h1>
     <div id="assigned-squares"></div>
+    <section id="dice-panel" aria-label="Ludo dice" hidden>
+      <p id="dice-status" aria-live="polite">Waiting for the server...</p>
+      <output id="dice-value" aria-label="Dice result">—</output>
+      <button id="roll-ludo-die" type="button">Roll the die</button>
+    </section>
     <div id="game-result" class="game-result" role="alert" aria-live="assertive" hidden>
       <p id="game-result-heading">CHECKMATE</p>
       <p id="game-result-winner"></p>
@@ -365,6 +481,10 @@
       const lastMoveStatus = document.getElementById("last-move");
       const identifyName = document.getElementById("identify-name");
       const assignedSquares = document.getElementById("assigned-squares");
+      const dicePanel = document.getElementById("dice-panel");
+      const diceStatus = document.getElementById("dice-status");
+      const diceValue = document.getElementById("dice-value");
+      const rollLudoDieButton = document.getElementById("roll-ludo-die");
       const gameResult = document.getElementById("game-result");
       const gameResultHeading = document.getElementById("game-result-heading");
       const gameResultWinner = document.getElementById("game-result-winner");
@@ -392,6 +512,9 @@
       }
 
       function getSquareColor(square) {
+        if (boardState.game === "ludo") {
+          return "light";
+        }
         if (boardState.game === "morris") {
           return "light";
         }
@@ -420,13 +543,14 @@
         const minRank = Math.min(...ranks);
         const maxRank = Math.max(...ranks);
         const boardSize = boardState.boardSize || 8;
+        const boardHeight = boardState.boardHeight || boardSize;
 
         return {
           minFile,
           maxRank,
           columns: maxFile - minFile + 1,
           rows: maxRank - minRank + 1,
-          blackSide: ranks.every((rank) => rank >= boardSize / 2 + 1)
+          blackSide: ranks.every((rank) => rank > boardHeight / 2)
         };
       }
 
@@ -435,9 +559,11 @@
           return MorrisLayout.pointSet.has(square);
         }
         const boardSize = boardState.boardSize || 8;
+        const boardWidth = boardState.boardWidth || boardSize;
+        const boardHeight = boardState.boardHeight || boardSize;
         const file = square.charCodeAt(0) - "a".charCodeAt(0);
         const rank = Number(square.slice(1));
-        return file >= 0 && file < boardSize && rank >= 1 && rank <= boardSize;
+        return file >= 0 && file < boardWidth && rank >= 1 && rank <= boardHeight;
       }
 
       function fitAssignedSquares() {
@@ -570,11 +696,23 @@
           const checkerPiece = pieceName &&
             (pieceName.startsWith("White-") || pieceName.startsWith("Black-")) &&
             (pieceName.endsWith("-man") || pieceName.endsWith("-king") || pieceName.endsWith("-stone"));
+          const ludoPiece = pieceName && pieceName.includes("-ludo");
           const color = pieceName && (pieceName.startsWith("White-") || pieceName.startsWith("white-"))
             ? "white"
             : "black";
-          piece.className = `piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-stone") ? " morris-stone" : ""}${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
-          piece.textContent = checkerPiece ? "" : pieceSymbols[pieceName] || "";
+          const ludoColors = ludoPiece
+            ? pieceName.slice(0, pieceName.indexOf("-ludo")).split("-")
+            : [];
+          const ludoColor = ludoColors.length === 1 ? ludoColors[0] : "multi";
+          piece.className = `piece ${ludoPiece ? `ludo-piece ${ludoColor}` : color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-stone") ? " morris-stone" : ""}${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
+          piece.style.background = ludoColors.length > 1
+            ? `conic-gradient(${ludoColors.map((tokenColor, index) =>
+              `${{ red: "#e53935", blue: "#1976d2", yellow: "#fbc02d", green: "#43a047" }[tokenColor]} ${index * 100 / ludoColors.length}% ${(index + 1) * 100 / ludoColors.length}%`
+            ).join(", ")})`
+            : "";
+          piece.textContent = ludoPiece
+            ? pieceName.split("-")[2] || "1"
+            : checkerPiece ? "" : pieceSymbols[pieceName] || "";
         });
       }
 
@@ -583,6 +721,7 @@
         const bounds = getAssignedSquareBounds();
         assignedSquares.classList.toggle("black-side", bounds ? bounds.blackSide : false);
         assignedSquares.classList.toggle("morris-board", boardState.game === "morris");
+        assignedSquares.classList.toggle("ludo-board", boardState.game === "ludo");
 
         if (bounds && boardState.game === "morris") {
           const assigned = new Set(assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square)));
@@ -607,7 +746,10 @@
         assignedSquareNames.filter((square) => isSquareOnCurrentBoard(square)).forEach((square) => {
           const rectangle = document.createElement("button");
           rectangle.type = "button";
-          rectangle.className = `assigned-square ${getSquareColor(square)}${boardState.game === "morris" ? " morris-point" : ""}`;
+          rectangle.className = `assigned-square ${getSquareColor(square)}${boardState.game === "morris" ? " morris-point" : ""}${boardState.game === "ludo" ? " ludo-cell" : ""}`;
+          if (boardState.game === "ludo") {
+            rectangle.dataset.ludoType = boardState.ludoLayout[square];
+          }
           rectangle.dataset.square = square;
           rectangle.setAttribute("aria-label", `${square.toUpperCase()}${boardState.board[square] ? `, ${boardState.board[square]}` : ""}`);
           if (boardState.game === "morris") {
@@ -642,7 +784,7 @@
       }
 
       function renderMoveStatus(state) {
-        turnStatus.textContent = `${state.gameName} (${state.boardSize}×${state.boardSize}): ${state.turn} to move.`;
+        turnStatus.textContent = `${state.gameName} (${state.boardWidth}×${state.boardHeight}): ${state.turn} to move.`;
         if (state.game === "morris") {
           if (state.pendingCapture) {
             turnStatus.textContent = `${state.turn} formed a mill. Tap an opposing piece to remove it.`;
@@ -651,6 +793,12 @@
           } else {
             turnStatus.textContent = `${state.turn} to move. Select a stone, then tap an empty point.`;
           }
+        } else if (state.game === "ludo") {
+          turnStatus.textContent = state.currentRoll === null
+            ? state.lastRoll && state.lastRoll.skipped
+              ? `${state.lastRoll.color} rolled ${state.lastRoll.value}; no token can move. ${state.turn} to roll.`
+              : `${state.turn} to roll the die on the designated phone.`
+            : `${state.turn} rolled ${state.currentRoll}. Select a token, then its destination.`;
         }
         if (!state.lastMove) {
           lastMoveStatus.textContent = "No moves yet.";
@@ -665,8 +813,13 @@
           ? `, capturing a piece on ${move.capturedPoint.toUpperCase()}`
           : move.capturedPiece
           ? `, capturing a ${move.capturedColor.toLowerCase()} ${move.capturedPiece}`
+          : move.capturedCount
+            ? `, capturing ${move.capturedCount} token(s)`
           : "";
-        lastMoveStatus.textContent = `${description}${capture}.`;
+        const ludoDetails = state.game === "ludo"
+          ? ` (rolled ${move.roll}${move.finished ? ", finished a token" : ""})`
+          : "";
+        lastMoveStatus.textContent = `${description}${capture}${ludoDetails}.`;
       }
 
       function renderGameResult(state) {
@@ -696,8 +849,31 @@
       });
 
       socket.on("board-update", (state) => {
-        const boardSizeChanged = (boardState.boardSize || 8) !== state.boardSize;
+        const boardSizeChanged =
+          (boardState.boardWidth || boardState.boardSize || 8) !== state.boardWidth ||
+          (boardState.boardHeight || boardState.boardSize || 8) !== state.boardHeight;
         boardState = state;
+        const isDiceDevice = state.game === "ludo" && state.ludoDiceDeviceName === deviceName;
+        dicePanel.hidden = !isDiceDevice;
+        assignedSquares.hidden = isDiceDevice;
+        if (isDiceDevice) {
+          diceStatus.textContent = state.currentRoll === null
+            ? state.lastRoll && state.lastRoll.skipped
+              ? `${state.lastRoll.color} rolled ${state.lastRoll.value}; no token could move. ${state.turn} to roll.`
+              : `${state.turn}'s turn. Roll the die.`
+            : `${state.turn} rolled ${state.currentRoll}. Move a token on another board.`;
+          const shownRoll = state.currentRoll !== null
+            ? state.currentRoll
+            : state.lastRoll ? state.lastRoll.value : "—";
+          diceValue.textContent = String(shownRoll);
+          rollLudoDieButton.disabled =
+            state.currentRoll !== null || Boolean(state.gameResult);
+          rollLudoDieButton.textContent = state.lastRoll && state.lastRoll.skipped &&
+            state.lastRoll.value === 6 && state.lastRoll.color === state.turn &&
+            state.currentRoll === null
+            ? "Roll again"
+            : "Roll the die";
+        }
         if (state.game === "morris" && isDocumentFullscreen()) {
           exitFullscreenForMorris();
         }
@@ -743,6 +919,9 @@
       });
 
       fullscreenToggle.addEventListener("click", toggleFullscreen);
+      rollLudoDieButton.addEventListener("click", () => {
+        socket.emit("roll-ludo-die");
+      });
       document.addEventListener("fullscreenchange", () => {
         updateFullscreenButton();
         window.requestAnimationFrame(updateViewportLayout);

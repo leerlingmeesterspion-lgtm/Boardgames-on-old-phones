@@ -7,7 +7,7 @@
     <style>
       .square-picker {
         display: grid;
-        grid-template-columns: repeat(var(--board-size, 8), minmax(2.5rem, 1fr));
+        grid-template-columns: repeat(var(--board-width, 8), minmax(2.5rem, 1fr));
         gap: 0.25rem;
         max-width: 32rem;
         margin: 0.5rem 0;
@@ -43,6 +43,88 @@
         aspect-ratio: 1;
         gap: 0;
         position: relative;
+      }
+
+      .server-board.ludo-board {
+        aspect-ratio: 1;
+        gap: 1px;
+        max-width: 32rem;
+      }
+
+      .server-square.ludo-cell {
+        font-family: sans-serif;
+        font-size: clamp(0.35rem, 1.4vw, 0.75rem);
+      }
+
+      .server-square.ludo-cell[data-ludo-type="empty"] {
+        background: #d7d7d7;
+      }
+
+      .server-square.ludo-cell[data-ludo-type="track"],
+      .server-square.ludo-cell[data-ludo-type="safe"] {
+        background: #fff;
+        color: #222;
+      }
+
+      .server-square.ludo-cell[data-ludo-type="safe"]::after {
+        color: #666;
+        content: "★";
+        font-size: 0.8em;
+        position: absolute;
+      }
+
+      .server-square.ludo-cell[data-ludo-type^="yard-red"],
+      .server-square.ludo-cell[data-ludo-type^="lane-red"],
+      .server-square.ludo-cell[data-ludo-type="goal-red"] {
+        background: #f3a5a5;
+      }
+
+      .server-square.ludo-cell[data-ludo-type^="yard-blue"],
+      .server-square.ludo-cell[data-ludo-type^="lane-blue"],
+      .server-square.ludo-cell[data-ludo-type="goal-blue"] {
+        background: #9dc8f6;
+      }
+
+      .server-square.ludo-cell[data-ludo-type^="yard-yellow"],
+      .server-square.ludo-cell[data-ludo-type^="lane-yellow"],
+      .server-square.ludo-cell[data-ludo-type="goal-yellow"] {
+        background: #f6e58d;
+      }
+
+      .server-square.ludo-cell[data-ludo-type^="yard-green"],
+      .server-square.ludo-cell[data-ludo-type^="lane-green"],
+      .server-square.ludo-cell[data-ludo-type="goal-green"] {
+        background: #9ed5a0;
+      }
+
+      .server-square.ludo-cell[data-ludo-type="center"] {
+        background: conic-gradient(#4caf50 0 25%, #fbc02d 0 50%, #2196f3 0 75%, #e53935 0);
+      }
+
+      .server-square-piece.ludo-piece {
+        align-items: center;
+        border: 1px solid #222;
+        border-radius: 50%;
+        box-sizing: border-box;
+        display: flex;
+        font-family: sans-serif;
+        font-size: clamp(0.35rem, 1.4vw, 0.75rem);
+        font-weight: bold;
+        height: 72%;
+        justify-content: center;
+        position: relative;
+        width: 72%;
+        z-index: 1;
+      }
+
+      .server-square-piece.ludo-piece.red { background: #e53935; color: #fff; }
+      .server-square-piece.ludo-piece.blue { background: #1976d2; color: #fff; }
+      .server-square-piece.ludo-piece.yellow { background: #fbc02d; color: #222; }
+      .server-square-piece.ludo-piece.green { background: #43a047; color: #fff; }
+      .server-square-piece.ludo-piece.multi { color: #fff; }
+
+      .device-dice-control {
+        margin: 0.5rem 0;
       }
 
       .morris-lines {
@@ -230,6 +312,7 @@
       <option value="chess">Chess (8×8)</option>
       <option value="checkers">International draughts (10×10)</option>
       <option value="morris">Nine Men's Morris</option>
+      <option value="ludo">Ludo (15×15)</option>
     </select>
     <div class="game-controls">
       <button id="undo-move" type="button" disabled>Revert last move</button>
@@ -265,9 +348,11 @@
       const blackResignsButton = document.getElementById("black-resigns");
       const whiteResignsButton = document.getElementById("white-resigns");
       const boardSquares = new Map();
-      let renderedBoardSize = 0;
+      let renderedBoardWidth = 0;
+      let renderedBoardHeight = 0;
       let renderedGame = "";
-      let currentBoardSize = 8;
+      let currentBoardWidth = 8;
+      let currentBoardHeight = 8;
       let connectedDevices = [];
       const pieceSymbols = {
         "black-rook": "♜",
@@ -284,43 +369,50 @@
         "white-pawn": "♙︎"
       };
 
-      function isSquareInsideBoard(square, size) {
+      function isSquareInsideDimensions(square, width, height) {
         const file = square.charCodeAt(0) - "a".charCodeAt(0);
         const rank = Number(square.slice(1));
-        return file >= 0 && file < size && rank >= 1 && rank <= size;
+        return file >= 0 && file < width && rank >= 1 && rank <= height;
       }
 
-      function renderBoard(board, selectedSquare, size) {
+      function renderBoard(board, selectedSquare, width, height, ludoLayout) {
         const isMorris = gameSelect.value === "morris";
-        if (renderedBoardSize !== size || renderedGame !== gameSelect.value) {
+        const isLudo = gameSelect.value === "ludo";
+        if (
+          renderedBoardWidth !== width ||
+          renderedBoardHeight !== height ||
+          renderedGame !== gameSelect.value
+        ) {
           serverBoard.textContent = "";
           boardSquares.clear();
-          renderedBoardSize = size;
+          renderedBoardWidth = width;
+          renderedBoardHeight = height;
           renderedGame = gameSelect.value;
           serverBoard.classList.toggle("morris-board", isMorris);
-          serverBoard.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
-          serverBoard.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
-          serverBoard.setAttribute("aria-label", `${size} by ${size} ${gameSelect.selectedOptions[0].text} board`);
-          const files = "abcdefghij";
+          serverBoard.classList.toggle("ludo-board", isLudo);
+          serverBoard.style.gridTemplateColumns = `repeat(${width}, minmax(0, 1fr))`;
+          serverBoard.style.gridTemplateRows = `repeat(${height}, minmax(0, 1fr))`;
+          serverBoard.setAttribute("aria-label", `${width} by ${height} ${gameSelect.selectedOptions[0].text} board`);
+          const files = "abcdefghijklmno";
 
           if (isMorris) {
             const lines = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             lines.classList.add("morris-lines");
-            lines.setAttribute("viewBox", `0 0 ${size} ${size}`);
+            lines.setAttribute("viewBox", `0 0 ${width} ${height}`);
             lines.setAttribute("aria-hidden", "true");
             for (const [first, second] of MorrisLayout.edges) {
               const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
               line.setAttribute("x1", String(first.charCodeAt(0) - 96 - 0.5));
-              line.setAttribute("y1", String(size - Number(first.slice(1)) + 0.5));
+              line.setAttribute("y1", String(height - Number(first.slice(1)) + 0.5));
               line.setAttribute("x2", String(second.charCodeAt(0) - 96 - 0.5));
-              line.setAttribute("y2", String(size - Number(second.slice(1)) + 0.5));
+              line.setAttribute("y2", String(height - Number(second.slice(1)) + 0.5));
               lines.appendChild(line);
             }
             serverBoard.appendChild(lines);
           }
 
-          for (let rank = size; rank >= 1; rank--) {
-            for (let fileIndex = 0; fileIndex < size; fileIndex++) {
+          for (let rank = height; rank >= 1; rank--) {
+            for (let fileIndex = 0; fileIndex < width; fileIndex++) {
               const file = files[fileIndex];
               const square = `${file}${rank}`;
               if (isMorris && !MorrisLayout.pointSet.has(square)) {
@@ -328,11 +420,14 @@
               }
               const cell = document.createElement("div");
               const color = (fileIndex + rank) % 2 === 1 ? "dark" : "light";
-              cell.className = `server-square ${color}${isMorris ? " morris-point" : ""}`;
+              cell.className = `server-square ${color}${isMorris ? " morris-point" : ""}${isLudo ? " ludo-cell" : ""}`;
+              if (isLudo) {
+                cell.dataset.ludoType = ludoLayout[square];
+              }
               cell.setAttribute("role", "gridcell");
               if (isMorris) {
                 cell.style.gridColumn = String(fileIndex + 1);
-                cell.style.gridRow = String(size - rank + 1);
+                cell.style.gridRow = String(height - rank + 1);
               }
 
               const piece = document.createElement("span");
@@ -368,12 +463,24 @@
           const checkerPiece = pieceName &&
             (pieceName.startsWith("White-") || pieceName.startsWith("Black-")) &&
             (pieceName.endsWith("-man") || pieceName.endsWith("-king") || pieceName.endsWith("-stone"));
+          const ludoPiece = pieceName && pieceName.includes("-ludo");
           const color = pieceName &&
             (pieceName.startsWith("white-") || pieceName.startsWith("White-"))
             ? "white"
             : "black";
-          elements.piece.className = `server-square-piece ${color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-stone") ? " morris-stone" : ""}${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
-          elements.piece.textContent = checkerPiece ? "" : pieceSymbols[pieceName] || "";
+          const ludoColors = ludoPiece
+            ? pieceName.slice(0, pieceName.indexOf("-ludo")).split("-")
+            : [];
+          const ludoColor = ludoColors.length === 1 ? ludoColors[0] : "multi";
+          elements.piece.className = `server-square-piece ${ludoPiece ? `ludo-piece ${ludoColor}` : color}${checkerPiece ? ` checker-piece${pieceName.endsWith("-stone") ? " morris-stone" : ""}${pieceName.endsWith("-king") ? " king" : ""}` : ""}`;
+          elements.piece.style.background = ludoColors.length > 1
+            ? `conic-gradient(${ludoColors.map((tokenColor, index) =>
+              `${{ red: "#e53935", blue: "#1976d2", yellow: "#fbc02d", green: "#43a047" }[tokenColor]} ${index * 100 / ludoColors.length}% ${(index + 1) * 100 / ludoColors.length}%`
+            ).join(", ")})`
+            : "";
+          elements.piece.textContent = ludoPiece
+            ? pieceName.split("-")[2] || "1"
+            : checkerPiece ? "" : pieceSymbols[pieceName] || "";
           const pointMarker = elements.cell.querySelector(".server-square-point");
           if (pointMarker) {
             pointMarker.hidden = Boolean(pieceName);
@@ -382,7 +489,7 @@
       }
 
       function renderMoveStatus(state) {
-        turnStatus.textContent = `${state.gameName} (${state.boardSize}×${state.boardSize}): ${state.turn} to move.`;
+        turnStatus.textContent = `${state.gameName} (${state.boardWidth}×${state.boardHeight}): ${state.turn} to move.`;
         if (state.game === "morris") {
           if (state.pendingCapture) {
             turnStatus.textContent = `${state.turn} formed a mill. Remove an opposing piece.`;
@@ -391,6 +498,12 @@
           } else {
             turnStatus.textContent = `${state.turn} to move. Select a stone, then an empty point.`;
           }
+        } else if (state.game === "ludo") {
+          turnStatus.textContent = state.currentRoll === null
+            ? state.lastRoll && state.lastRoll.skipped
+              ? `${state.lastRoll.color} rolled ${state.lastRoll.value}; no token can move. ${state.turn} to roll.`
+              : `${state.turn} to roll the die on the designated phone.`
+            : `${state.turn} rolled ${state.currentRoll}. Select a token, then its destination.`;
         }
         if (!state.lastMove) {
           lastMoveStatus.textContent = "No moves yet.";
@@ -405,8 +518,13 @@
           ? `, capturing a piece on ${move.capturedPoint.toUpperCase()}`
           : move.capturedPiece
           ? `, capturing a ${move.capturedColor.toLowerCase()} ${move.capturedPiece}`
+          : move.capturedCount
+            ? `, capturing ${move.capturedCount} token(s)`
           : "";
-        lastMoveStatus.textContent = `${description}${capture}.`;
+        const ludoDetails = state.game === "ludo"
+          ? ` (rolled ${move.roll}${move.finished ? ", finished a token" : ""})`
+          : "";
+        lastMoveStatus.textContent = `${description}${capture}${ludoDetails}.`;
       }
 
       function renderGameResult(state) {
@@ -442,8 +560,21 @@
           });
           item.appendChild(identifyButton);
 
+          if (gameSelect.value === "ludo") {
+            const diceButton = document.createElement("button");
+            diceButton.type = "button";
+            diceButton.className = "device-dice-control";
+            diceButton.textContent = device.isLudoDice
+              ? "Remove dice-phone role"
+              : "Use as Ludo dice phone";
+            diceButton.addEventListener("click", () => {
+              socket.emit("set-ludo-dice-device", device.isLudoDice ? null : device.id);
+            });
+            item.appendChild(diceButton);
+          }
+
           const assignedLabel = document.createElement("p");
-          assignedLabel.textContent = `Assigned squares for ${currentBoardSize}×${currentBoardSize} board:`;
+          assignedLabel.textContent = `Assigned squares for ${currentBoardWidth}×${currentBoardHeight} board:`;
           item.appendChild(assignedLabel);
 
           const assignmentShortcuts = document.createElement("div");
@@ -454,7 +585,9 @@
             button.type = "button";
             button.textContent = `Assign ${half} half`;
             button.addEventListener("click", () => {
-              const midpoint = currentBoardSize / 2;
+              const midpoint = gameSelect.value === "morris"
+                ? currentBoardWidth / 2
+                : currentBoardHeight / 2;
               squarePicker.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
                 if (gameSelect.value === "morris") {
                   const fileIndex = checkbox.value.charCodeAt(0) - "a".charCodeAt(0);
@@ -471,11 +604,11 @@
 
           const squarePicker = document.createElement("div");
           squarePicker.className = `square-picker${gameSelect.value === "morris" ? " morris-picker" : ""}`;
-          squarePicker.style.setProperty("--board-size", currentBoardSize);
-          const files = "abcdefghij";
+          squarePicker.style.setProperty("--board-width", currentBoardWidth);
+          const files = "abcdefghijklmno";
 
-          for (let rank = currentBoardSize; rank >= 1; rank--) {
-            for (let fileIndex = 0; fileIndex < currentBoardSize; fileIndex++) {
+          for (let rank = currentBoardHeight; rank >= 1; rank--) {
+            for (let fileIndex = 0; fileIndex < currentBoardWidth; fileIndex++) {
               const square = `${files[fileIndex]}${rank}`;
               if (gameSelect.value === "morris" && !MorrisLayout.pointSet.has(square)) {
                 continue;
@@ -483,7 +616,7 @@
               const label = document.createElement("label");
               if (gameSelect.value === "morris") {
                 label.style.gridColumn = String(fileIndex + 1);
-                label.style.gridRow = String(currentBoardSize - rank + 1);
+                label.style.gridRow = String(currentBoardHeight - rank + 1);
               }
               const checkbox = document.createElement("input");
               checkbox.type = "checkbox";
@@ -507,7 +640,8 @@
                 ? squares
                 : [
                   ...squares,
-                  ...device.squares.filter((square) => !isSquareInsideBoard(square, currentBoardSize))
+                  ...device.squares.filter((square) =>
+                    !isSquareInsideDimensions(square, currentBoardWidth, currentBoardHeight))
                 ]
             });
           });
@@ -548,13 +682,18 @@
       });
 
       socket.on("board-update", (state) => {
-        const boardSizeChanged = currentBoardSize !== state.boardSize;
-        currentBoardSize = state.boardSize;
+        const boardSizeChanged =
+          currentBoardWidth !== state.boardWidth ||
+          currentBoardHeight !== state.boardHeight;
+        currentBoardWidth = state.boardWidth;
+        currentBoardHeight = state.boardHeight;
         gameSelect.value = state.game;
-        renderBoard(state.board, state.selectedSquare, state.boardSize);
+        renderBoard(state.board, state.selectedSquare, state.boardWidth, state.boardHeight, state.ludoLayout || {});
         renderMoveStatus(state);
         renderGameResult(state);
         undoMoveButton.disabled = !state.canUndo || Boolean(state.resignation);
+        blackResignsButton.hidden = state.game === "ludo";
+        whiteResignsButton.hidden = state.game === "ludo";
         blackResignsButton.disabled = Boolean(state.gameResult);
         whiteResignsButton.disabled = Boolean(state.gameResult);
         if (boardSizeChanged) {

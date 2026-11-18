@@ -5,17 +5,20 @@ const { Server } = require("socket.io");
 const { Chess } = require("chess.js");
 const { CheckersGame, SIZE: CHECKERS_SIZE } = require("./games/checkers");
 const { MorrisGame, points: MORRIS_POINTS } = require("./games/morris");
+const { LudoGame, WIDTH: LUDO_SIZE } = require("./games/ludo");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 const devices = new Map();
 let chess = new Chess();
 let checkers = new CheckersGame();
 let morris = new MorrisGame();
+let ludo = new LudoGame();
 let currentGame = "chess";
 let checkersLastMove = null;
+let ludoDiceDeviceName = null;
 const pieceNames = {
   p: "pawn",
   n: "knight",
@@ -33,14 +36,31 @@ function getCurrentGameName() {
   if (currentGame === "chess") {
     return "Chess";
   }
-  return currentGame === "checkers" ? "International Draughts" : "Nine Men's Morris";
+  if (currentGame === "checkers") {
+    return "International Draughts";
+  }
+  if (currentGame === "morris") {
+    return "Nine Men's Morris";
+  }
+  return "Ludo";
 }
 
 function getBoardSize() {
   if (currentGame === "chess") {
     return 8;
   }
-  return currentGame === "checkers" ? CHECKERS_SIZE : 7;
+  if (currentGame === "checkers") {
+    return CHECKERS_SIZE;
+  }
+  if (currentGame === "morris") {
+    return 7;
+  }
+  return LUDO_SIZE;
+}
+
+function getBoardDimensions() {
+  const size = getBoardSize();
+  return { boardWidth: size, boardHeight: size };
 }
 
 function getChessBoard() {
@@ -98,17 +118,29 @@ function getGameResult() {
     }
   }
 
+  if (currentGame === "ludo") {
+    const winner = ludo.getWinner();
+    if (winner) {
+      return { heading: "ALL FOUR TOKENS FINISHED", winner };
+    }
+  }
+
   return null;
 }
 
 function getBoardState() {
   const isChess = currentGame === "chess";
   const isCheckers = currentGame === "checkers";
-  const board = isChess ? getChessBoard() : isCheckers ? checkers.board : morris.board;
+  const isMorris = currentGame === "morris";
+  const isLudo = currentGame === "ludo";
+  const board = isChess
+    ? getChessBoard()
+    : isCheckers ? checkers.board
+      : isMorris ? morris.board : ludo.board;
   const history = chess.history({ verbose: true });
   const turn = isChess
     ? (chess.turn() === "w" ? "White" : "Black")
-    : isCheckers ? checkers.turn : morris.turn;
+    : isCheckers ? checkers.turn : isMorris ? morris.turn : ludo.turn;
   const lastMove = isChess
     ? (history.length > 0
       ? {
@@ -123,33 +155,46 @@ function getBoardState() {
           : null
       }
       : null)
-    : isCheckers ? checkersLastMove : morris.lastMove;
+    : isCheckers ? checkersLastMove : isMorris ? morris.lastMove : ludo.lastMove;
+  const dimensions = getBoardDimensions();
 
   return {
     board,
     game: currentGame,
     gameName: getCurrentGameName(),
     boardSize: getBoardSize(),
+    ...dimensions,
     selectedSquare,
     turn,
     lastMove,
-    phase: currentGame === "morris" ? morris.phase : null,
+    phase: isMorris ? morris.phase : null,
     piecesToPlace: currentGame === "morris"
       ? { White: 9 - morris.placed.White, Black: 9 - morris.placed.Black }
       : null,
-    pendingCapture: currentGame === "morris" && morris.pendingCapture,
+    currentRoll: isLudo ? ludo.currentRoll : null,
+    lastRoll: isLudo ? ludo.lastRoll : null,
+    ludoLayout: isLudo ? ludo.getLayout() : null,
+    ludoDiceDeviceName: isLudo ? ludoDiceDeviceName : null,
+    pendingCapture: isMorris && morris.pendingCapture,
     selectableSquares: currentGame === "morris"
       ? (morris.pendingCapture
         ? morris.getCapturablePoints()
         : morris.phase === "placing"
           ? MORRIS_POINTS.filter((point) => morris.board[point] === null)
           : morris.getLegalMoves(selectedSquare))
-      : [],
+      : isLudo
+        ? (selectedSquare === null
+          ? ludo.pieces
+            .map((piece) => ludo.getPosition(piece))
+            .filter((square, index, squares) =>
+              square && squares.indexOf(square) === index && ludo.getLegalMoves(square).length > 0)
+          : ludo.getLegalMoves(selectedSquare))
+        : [],
     canUndo: isChess
       ? history.length > 0
       : isCheckers
         ? checkers.history.length > 0
-        : morris.history.length > 0,
+        : isMorris ? morris.history.length > 0 : ludo.history.length > 0,
     checkmateWinner: isChess && chess.isCheckmate()
       ? (chess.turn() === "w" ? "Black" : "White")
       : null,
@@ -163,7 +208,7 @@ function broadcastBoardState() {
 }
 
 function isValidSquare(square) {
-  return typeof square === "string" && /^[a-j](10|[1-9])$/.test(square);
+  return typeof square === "string" && /^[a-o](1[0-5]|[1-9])$/.test(square);
 }
 
 function isSquareOnCurrentBoard(square) {
@@ -175,7 +220,8 @@ function isSquareOnCurrentBoard(square) {
   }
   const file = square.charCodeAt(0) - "a".charCodeAt(0);
   const rank = Number(square.slice(1));
-  return file < getBoardSize() && rank <= getBoardSize();
+  const { boardWidth, boardHeight } = getBoardDimensions();
+  return file < boardWidth && rank <= boardHeight;
 }
 
 function getConnectedDevices() {
@@ -186,7 +232,8 @@ function getConnectedDevices() {
       connectedDevices.push({
         id: device.socketId,
         name,
-        squares: getDeviceSquares(device)
+        squares: getDeviceSquares(device),
+        isLudoDice: name === ludoDiceDeviceName
       });
     }
   }
@@ -195,7 +242,10 @@ function getConnectedDevices() {
 }
 
 function getDeviceSquares(device) {
-  return currentGame === "morris" ? device.morrisSquares : device.squares;
+  if (currentGame === "morris") {
+    return device.morrisSquares || [];
+  }
+  return currentGame === "ludo" ? device.ludoSquares || [] : device.squares;
 }
 
 function getDeviceBySocketId(socketId) {
@@ -207,7 +257,7 @@ function getDeviceBySocketId(socketId) {
 }
 
 function areValidSquares(squares) {
-  if (!Array.isArray(squares) || squares.length > CHECKERS_SIZE * CHECKERS_SIZE) {
+  if (!Array.isArray(squares) || squares.length > LUDO_SIZE * LUDO_SIZE) {
     return false;
   }
 
@@ -396,6 +446,51 @@ function handleMorrisSquareTap(socket, square) {
   broadcastBoardState();
 }
 
+function handleLudoSquareTap(socket, square) {
+  if (ludo.currentRoll === null) {
+    socket.emit("move-rejected", { from: square, to: square });
+    return;
+  }
+
+  if (square === selectedSquare) {
+    selectedSquare = null;
+    broadcastBoardState();
+    return;
+  }
+
+  if (selectedSquare === null) {
+    if (ludo.getLegalMoves(square).length > 0) {
+      selectedSquare = square;
+      broadcastBoardState();
+      return;
+    }
+  }
+
+  if (square === selectedSquare) {
+    selectedSquare = null;
+    broadcastBoardState();
+    return;
+  }
+
+  const fromSquare = selectedSquare;
+  const move = fromSquare ? ludo.move(fromSquare, square) : null;
+  if (!move) {
+    if (ludo.getLegalMoves(square).length > 0) {
+      selectedSquare = square;
+      broadcastBoardState();
+      return;
+    }
+    socket.emit("move-rejected", { from: fromSquare || "select", to: square });
+    return;
+  }
+
+  selectedSquare = null;
+  console.log(`${move.color} moved ${move.from.toUpperCase()} to ${move.to.toUpperCase()} with a roll of ${move.roll}` +
+    (move.capturedCount ? `, capturing ${move.capturedCount} token(s)` : "") +
+    (move.finished ? ", finishing a token" : ""));
+  broadcastBoardState();
+}
+
 function broadcastDeviceNames() {
   io.emit("devices-update", getConnectedDevices());
 }
@@ -427,7 +522,7 @@ io.on("connection", (socket) => {
 
     let device = devices.get(deviceName);
     if (!device) {
-      device = { socketId: null, squares: [], morrisSquares: [] };
+      device = { socketId: null, squares: [], morrisSquares: [], ludoSquares: [] };
     }
     device.socketId = socket.id;
     devices.set(deviceName, device);
@@ -462,6 +557,8 @@ io.on("connection", (socket) => {
 
     if (currentGame === "morris") {
       device.morrisSquares = squares;
+    } else if (currentGame === "ludo") {
+      device.ludoSquares = squares;
     } else {
       device.squares = squares;
     }
@@ -470,7 +567,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("change-game", (game) => {
-    if (socket.data.deviceName || !["chess", "checkers", "morris"].includes(game)) {
+    if (socket.data.deviceName || !["chess", "checkers", "morris", "ludo"].includes(game)) {
       console.warn(`Ignored invalid game change request from ${socket.id}`);
       return;
     }
@@ -483,6 +580,7 @@ io.on("connection", (socket) => {
     chess = new Chess();
     checkers = new CheckersGame();
     morris = new MorrisGame();
+    ludo = new LudoGame();
     selectedSquare = null;
     resignation = null;
     checkersLastMove = null;
@@ -521,20 +619,82 @@ io.on("connection", (socket) => {
       }
       checkersLastMove = null;
       console.log("International draughts turn undone");
-    } else {
+    } else if (currentGame === "morris") {
       if (!morris.undo()) {
         console.warn(`Ignored undo request with no moves from ${socket.id}`);
         return;
       }
       console.log("Nine Men's Morris turn undone");
+    } else {
+      if (!ludo.undo()) {
+        console.warn(`Ignored undo request with no moves from ${socket.id}`);
+        return;
+      }
+      console.log("Ludo move undone");
     }
 
     selectedSquare = null;
     broadcastBoardState();
   });
 
+  socket.on("set-ludo-dice-device", (deviceId) => {
+    if (socket.data.deviceName || currentGame !== "ludo") {
+      console.warn(`Ignored Ludo dice-device change request from ${socket.id}`);
+      return;
+    }
+
+    if (deviceId === null) {
+      ludoDiceDeviceName = null;
+    } else {
+      const device = typeof deviceId === "string" ? getDeviceBySocketId(deviceId) : undefined;
+      if (!device || !device.socketId) {
+        console.warn(`Ignored Ludo dice-device selection for an unknown device from ${socket.id}`);
+        return;
+      }
+      for (const [name, candidate] of devices) {
+        if (candidate === device) {
+          ludoDiceDeviceName = name;
+          break;
+        }
+      }
+    }
+    broadcastDeviceNames();
+    broadcastBoardState();
+  });
+
+  socket.on("roll-ludo-die", () => {
+    const device = socket.data.deviceName
+      ? devices.get(socket.data.deviceName)
+      : undefined;
+    if (
+      !socket.data.deviceName ||
+      socket.data.deviceName !== ludoDiceDeviceName ||
+      !device ||
+      device.socketId !== socket.id ||
+      currentGame !== "ludo" ||
+      isGameOver()
+    ) {
+      console.warn(`Ignored Ludo die roll request from ${socket.id}`);
+      return;
+    }
+
+    const result = ludo.roll();
+    if (!result) {
+      console.warn(`Ignored Ludo die roll while a roll is already active from ${socket.id}`);
+      return;
+    }
+    selectedSquare = null;
+    console.log(`${result.color} rolled ${result.value}` +
+      (result.skipped ? "; no legal move" : ""));
+    broadcastBoardState();
+  });
+
   socket.on("resign", (color) => {
-    if ((color !== "White" && color !== "Black") || isGameOver()) {
+    if (
+      currentGame === "ludo" ||
+      (color !== "White" && color !== "Black") ||
+      isGameOver()
+    ) {
       console.warn(`Ignored invalid resignation request from ${socket.id}`);
       return;
     }
@@ -574,8 +734,10 @@ io.on("connection", (socket) => {
       handleChessSquareTap(socket, square);
     } else if (currentGame === "checkers") {
       handleCheckersSquareTap(socket, square);
-    } else {
+    } else if (currentGame === "morris") {
       handleMorrisSquareTap(socket, square);
+    } else {
+      handleLudoSquareTap(socket, square);
     }
   });
 

@@ -1,6 +1,6 @@
 # Modular Board Games
 
-A board-game system where phones are used as individual parts of a physical board. It currently supports chess, 10×10 International draughts, and Nine Men's Morris.
+A board-game system where phones are used as individual parts of a physical board. It currently supports chess, 10×10 International draughts, Nine Men's Morris, and Ludo.
 
 ## Idea
 
@@ -89,11 +89,11 @@ This is different from `io.emit(...)`, which broadcasts an event to every connec
 
 ## Assign board squares
 
-Use the **Game** selector on `/admin` to choose Chess (8×8), International draughts (10×10), or Nine Men's Morris. Changing games starts a fresh game. The device square picker changes to match the selected board. A phone shows only the assigned squares that exist on the active board; assignments for larger boards are kept when switching between Chess and draughts. Morris assignments are stored separately from those square assignments.
+Use the **Game** selector on `/admin` to choose Chess (8×8), International draughts (10×10), Nine Men's Morris, or Ludo (15×15). Changing games starts a fresh game. The device square picker changes to match the selected board. A phone shows only the assigned squares that exist on the active board; assignments for larger boards are kept when switching between Chess and draughts. Morris and Ludo assignments are stored separately from those square assignments.
 
 Select squares such as A1 and A2, then click **Save**. The server validates and keeps the selected square names in memory. It sends `squares-update` only to that device, and the phone draws a rectangle for each assigned square. The phone keeps the squares in their correct relative positions and stretches the assigned grid to fill the available screen, so squares can look rectangular when the screen shape does not match the assigned board section. Each phone square shows its coordinate in two opposite corners, with one label upside down, so it can be read from either side. Assignments confined to the far half of the board are flipped 180 degrees to face that side. The admin board has a button to flip its view between players. Chess pieces retain their existing colors and orientation; draughts pieces appear as round counters, with a K marking kings.
 
-On the phone or tablet page, tap **Full screen** to hide the browser controls when the browser supports full-screen mode. The tile layout resizes to the available screen for Chess, International draughts, and Nine Men's Morris. If full screen is unavailable, use the browser's own full-screen option.
+On the phone or tablet page, tap **Full screen** to hide the browser controls when the browser supports full-screen mode. The tile layout resizes to the available screen for Chess, International draughts, Nine Men's Morris, and Ludo. If full screen is unavailable, use the browser's own full-screen option.
 
 The square configuration stays in server memory if a phone disconnects and reconnects with the same friendly name. It is lost when the server restarts; there is no database yet.
 
@@ -124,6 +124,12 @@ To use two tablets, connect both to the server and select **Assign bottom half**
 Choose **Nine Men's Morris** in the admin **Game** selector. The board shows its 24 points and connecting lines. Use **Assign left half** for one device and **Assign right half** for another (or choose points individually), then save both assignments. A point is drawn on a device only when assigned there; connecting lines appear when both ends are assigned to that device.
 
 Players take turns placing nine stones. Making a row of three forms a mill and lets that player remove one opposing stone; stones in a mill are protected unless all opposing stones are in mills. After all stones are placed, select one of your stones and tap an adjacent empty point. Once a player has only three stones, they may fly to any empty point. A player loses with fewer than three stones or when none of their stones can move. The **Revert last move** button undoes a complete placement or movement turn, including its mill capture. Automatic draw rules are not included.
+
+## Play Ludo
+
+Choose **Ludo (15×15)** in the admin **Game** selector. Ludo has four players (Red, Blue, Yellow, and Green), with four tokens each in their matching yards. Use the connected-device control **Use as Ludo dice phone** to choose which phone gets the large die and **Roll the die** button. Only that phone can roll, and it shows the die instead of its assigned board squares, so use other phones to display the board.
+
+Assign board squares to the other phones with the square picker or the top/bottom-half shortcuts. A roll of six lets a player bring a token out to its start square or move a token six spaces, and gives that player another roll after moving. Other rolls move one token by the number shown. Landing on an opponent on an ordinary track square sends that token back to its yard; the marked safe squares prevent captures. A token must reach its finish with an exact roll. Tap a token's square, then its destination on any connected board phone. **Revert last move** undoes the last token move.
 
 Run the focused rules tests with `npm.cmd test`.
 
