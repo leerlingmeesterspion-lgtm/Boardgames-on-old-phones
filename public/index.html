@@ -843,6 +843,16 @@
         status.textContent = `Connected as ${deviceName}`;
       });
 
+      socket.on("server-shutting-down", (acknowledge) => {
+        status.textContent = "The server is shutting down. Leaving the website.";
+        if (typeof acknowledge === "function") {
+          acknowledge();
+        }
+        window.setTimeout(() => {
+          window.location.replace("about:blank");
+        }, 100);
+      });
+
       socket.on("squares-update", (squares) => {
         assignedSquareNames = squares;
         renderAssignedSquares();

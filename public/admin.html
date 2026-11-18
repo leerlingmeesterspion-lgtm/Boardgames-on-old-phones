@@ -276,6 +276,11 @@
         gap: 0.5rem;
       }
 
+      .shutdown-button {
+        background: #a00000;
+        color: #fff;
+      }
+
       .game-result {
         align-items: center;
         background-color: rgb(0 0 0 / 85%);
@@ -318,6 +323,7 @@
       <button id="undo-move" type="button" disabled>Revert last move</button>
       <button id="black-resigns" type="button" disabled>Black resigns</button>
       <button id="white-resigns" type="button" disabled>White resigns</button>
+      <button id="shutdown-server" class="shutdown-button" type="button">Shut down server</button>
     </div>
     <h2>Server thinks physical board</h2>
     <button id="flip-board" type="button" aria-pressed="false">Flip board for Black</button>
@@ -347,6 +353,7 @@
       const gameSelect = document.getElementById("game-select");
       const blackResignsButton = document.getElementById("black-resigns");
       const whiteResignsButton = document.getElementById("white-resigns");
+      const shutdownServerButton = document.getElementById("shutdown-server");
       const boardSquares = new Map();
       let renderedBoardWidth = 0;
       let renderedBoardHeight = 0;
@@ -354,6 +361,7 @@
       let currentBoardWidth = 8;
       let currentBoardHeight = 8;
       let connectedDevices = [];
+      let isShuttingDown = false;
       const pieceSymbols = {
         "black-rook": "♜",
         "black-knight": "♞",
@@ -663,6 +671,16 @@
         socket.emit("resign", "White");
       });
 
+      shutdownServerButton.addEventListener("click", () => {
+        if (!window.confirm("Shut down the server? All connected devices will disconnect.")) {
+          return;
+        }
+        isShuttingDown = true;
+        shutdownServerButton.disabled = true;
+        status.textContent = "Shutting down the server...";
+        socket.emit("shutdown-server");
+      });
+
       gameSelect.addEventListener("change", () => {
         socket.emit("change-game", gameSelect.value);
       });
@@ -678,7 +696,21 @@
       });
 
       socket.on("disconnect", () => {
-        status.textContent = "Disconnected from the server.";
+        if (!isShuttingDown) {
+          status.textContent = "Disconnected from the server.";
+        }
+      });
+
+      socket.on("server-shutting-down", (acknowledge) => {
+        isShuttingDown = true;
+        shutdownServerButton.disabled = true;
+        status.textContent = "The server is shutting down.";
+        if (typeof acknowledge === "function") {
+          acknowledge();
+        }
+        window.setTimeout(() => {
+          window.location.replace("about:blank");
+        }, 100);
       });
 
       socket.on("board-update", (state) => {

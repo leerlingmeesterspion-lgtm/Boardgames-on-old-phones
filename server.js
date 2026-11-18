@@ -19,6 +19,7 @@ let ludo = new LudoGame();
 let currentGame = "chess";
 let checkersLastMove = null;
 let ludoDiceDeviceName = null;
+let isShuttingDown = false;
 const pieceNames = {
   p: "pawn",
   n: "knight",
@@ -530,6 +531,24 @@ io.on("connection", (socket) => {
     socket.emit("squares-update", getDeviceSquares(device));
     console.log(`${deviceName} connected`);
     broadcastDeviceNames();
+  });
+
+  socket.on("shutdown-server", () => {
+    if (socket.data.deviceName || isShuttingDown) {
+      console.warn(`Ignored server shutdown request from ${socket.id}`);
+      return;
+    }
+
+    isShuttingDown = true;
+    console.log(`Server shutdown requested by admin ${socket.id}`);
+    io.timeout(3000).emit("server-shutting-down", (error) => {
+      if (error) {
+        console.warn("Some connected pages did not confirm leaving the website");
+      }
+      io.close(() => {
+        console.log("Server shut down");
+      });
+    });
   });
 
   socket.on("identify-device", (deviceId) => {
