@@ -6,7 +6,7 @@ A board-game system where phones are used as individual parts of a physical boar
 
 - Windows 11 laptop = master
 
-- Android phones or other phones with working browser = chessboard displays
+- Android phones or other phones with working browser = board game displays
 
 - Node.js web server
 
