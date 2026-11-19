@@ -1,6 +1,6 @@
 # Modular Board Games
 
-A board-game system where phones are used as individual parts of a physical board. It currently supports chess, 10×10 International draughts, Nine Men's Morris, and Ludo. You also need to know your laptops ip
+A board-game system where phones are used as individual parts of a physical board. It currently supports chess, 10×10 International draughts, Nine Men's Morris, and Ludo.
 
 ## Idea
 
