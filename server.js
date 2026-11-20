@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const { Chess } = require("chess.js");
 const { CheckersGame, SIZE: CHECKERS_SIZE } = require("./games/checkers");
 const { MorrisGame, points: MORRIS_POINTS } = require("./games/morris");
-const { LudoGame, WIDTH: LUDO_SIZE } = require("./games/ludo");
+const { LudoGame, WIDTH: LUDO_SIZE, COLORS: LUDO_COLORS } = require("./games/ludo");
 
 const app = express();
 const server = http.createServer(app);
@@ -15,7 +15,8 @@ const devices = new Map();
 let chess = new Chess();
 let checkers = new CheckersGame();
 let morris = new MorrisGame();
-let ludo = new LudoGame();
+let ludoPlayers = [...LUDO_COLORS];
+let ludo = new LudoGame(ludoPlayers);
 let currentGame = "chess";
 let checkersLastMove = null;
 let ludoDiceDeviceName = null;
@@ -176,6 +177,7 @@ function getBoardState() {
     lastRoll: isLudo ? ludo.lastRoll : null,
     ludoLayout: isLudo ? ludo.getLayout() : null,
     ludoDiceDeviceName: isLudo ? ludoDiceDeviceName : null,
+    ludoPlayers,
     pendingCapture: isMorris && morris.pendingCapture,
     selectableSquares: currentGame === "morris"
       ? (morris.pendingCapture
@@ -599,7 +601,7 @@ io.on("connection", (socket) => {
     chess = new Chess();
     checkers = new CheckersGame();
     morris = new MorrisGame();
-    ludo = new LudoGame();
+    ludo = new LudoGame(ludoPlayers);
     selectedSquare = null;
     resignation = null;
     checkersLastMove = null;
@@ -610,6 +612,29 @@ io.on("connection", (socket) => {
       if (device.socketId) {
         io.to(device.socketId).emit("squares-update", getDeviceSquares(device));
       }
+    }
+  });
+
+  socket.on("set-ludo-players", (players) => {
+    if (
+      socket.data.deviceName ||
+      !Array.isArray(players) ||
+      players.length < 2 ||
+      players.length > LUDO_COLORS.length ||
+      new Set(players).size !== players.length ||
+      players.some((color) => !LUDO_COLORS.includes(color))
+    ) {
+      console.warn(`Ignored invalid Ludo player selection from ${socket.id}`);
+      return;
+    }
+
+    ludoPlayers = LUDO_COLORS.filter((color) => players.includes(color));
+    if (currentGame === "ludo") {
+      ludo = new LudoGame(ludoPlayers);
+      selectedSquare = null;
+      resignation = null;
+      console.log(`Ludo players changed to ${ludoPlayers.join(", ")}; started a new game`);
+      broadcastBoardState();
     }
   });
 

@@ -32,8 +32,8 @@ function getCoordinates(square) {
     : null;
 }
 
-function getNextTurn(color) {
-  return COLORS[(COLORS.indexOf(color) + 1) % COLORS.length];
+function getNextTurn(color, activeColors) {
+  return activeColors[(activeColors.indexOf(color) + 1) % activeColors.length];
 }
 
 function copyPieces(pieces) {
@@ -41,15 +41,25 @@ function copyPieces(pieces) {
 }
 
 class LudoGame {
-  constructor() {
+  constructor(colors = COLORS) {
+    if (
+      !Array.isArray(colors) ||
+      colors.length < 2 ||
+      colors.length > COLORS.length ||
+      new Set(colors).size !== colors.length ||
+      colors.some((color) => !COLORS.includes(color))
+    ) {
+      throw new RangeError("Ludo requires two to four unique player colors");
+    }
+    this.activeColors = COLORS.filter((color) => colors.includes(color));
     this.reset();
   }
 
   reset() {
-    this.turn = COLORS[0];
+    this.turn = this.activeColors[0];
     this.currentRoll = null;
     this.lastRoll = null;
-    this.pieces = COLORS.flatMap((color) =>
+    this.pieces = this.activeColors.flatMap((color) =>
       YARDS[color].map((_, index) => ({
         id: `${color}-${index + 1}`,
         color,
@@ -201,7 +211,7 @@ class LudoGame {
       this.currentRoll = null;
       this.lastRoll.skipped = true;
       if (value !== 6) {
-        this.turn = getNextTurn(this.turn);
+        this.turn = getNextTurn(this.turn, this.activeColors);
       }
     }
     return { ...this.lastRoll };
@@ -248,7 +258,7 @@ class LudoGame {
     };
     this.currentRoll = null;
     if (roll !== 6 || this.getWinner()) {
-      this.turn = getNextTurn(this.turn);
+      this.turn = getNextTurn(this.turn, this.activeColors);
     }
     this.updateBoard();
     return { ...this.lastMove };
@@ -264,7 +274,7 @@ class LudoGame {
   }
 
   getWinner() {
-    return COLORS.find((color) =>
+    return this.activeColors.find((color) =>
       this.pieces.filter((piece) => piece.color === color && piece.progress === 57).length === 4
     ) || null;
   }

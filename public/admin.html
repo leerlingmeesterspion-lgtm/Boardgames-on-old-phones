@@ -276,6 +276,17 @@
         gap: 0.5rem;
       }
 
+      .ludo-player-settings {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 0.75rem 0;
+      }
+
+      .ludo-player-settings[hidden] {
+        display: none;
+      }
+
       .shutdown-button {
         background: #a00000;
         color: #fff;
@@ -319,6 +330,14 @@
       <option value="morris">Nine Men's Morris</option>
       <option value="ludo">Ludo (15×15)</option>
     </select>
+    <fieldset id="ludo-player-settings" class="ludo-player-settings" hidden>
+      <legend>Choose Ludo players (2–4)</legend>
+      <label><input type="checkbox" name="ludo-player" value="Red" checked> Red</label>
+      <label><input type="checkbox" name="ludo-player" value="Blue" checked> Blue</label>
+      <label><input type="checkbox" name="ludo-player" value="Yellow" checked> Yellow</label>
+      <label><input type="checkbox" name="ludo-player" value="Green" checked> Green</label>
+      <span id="ludo-player-count" aria-live="polite">4 players</span>
+    </fieldset>
     <div class="game-controls">
       <button id="undo-move" type="button" disabled>Revert last move</button>
       <button id="black-resigns" type="button" disabled>Black resigns</button>
@@ -351,6 +370,11 @@
       const gameResultWinner = document.getElementById("game-result-winner");
       const flipBoardButton = document.getElementById("flip-board");
       const gameSelect = document.getElementById("game-select");
+      const ludoPlayerSettings = document.getElementById("ludo-player-settings");
+      const ludoPlayerCount = document.getElementById("ludo-player-count");
+      const ludoPlayerCheckboxes = Array.from(
+        ludoPlayerSettings.querySelectorAll('input[name="ludo-player"]')
+      );
       const blackResignsButton = document.getElementById("black-resigns");
       const whiteResignsButton = document.getElementById("white-resigns");
       const shutdownServerButton = document.getElementById("shutdown-server");
@@ -659,6 +683,28 @@
         });
       }
 
+      function updateLudoPlayers(players) {
+        ludoPlayerCheckboxes.forEach((checkbox) => {
+          checkbox.checked = players.includes(checkbox.value);
+        });
+        ludoPlayerCount.textContent = `${players.length} ${players.length === 1 ? "player" : "players"}`;
+        ludoPlayerSettings.hidden = gameSelect.value !== "ludo";
+      }
+
+      ludoPlayerCheckboxes.forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          const players = ludoPlayerCheckboxes
+            .filter((playerCheckbox) => playerCheckbox.checked)
+            .map((playerCheckbox) => playerCheckbox.value);
+          if (players.length < 2) {
+            checkbox.checked = true;
+            status.textContent = "Ludo needs at least two players.";
+            return;
+          }
+          socket.emit("set-ludo-players", players);
+        });
+      });
+
       undoMoveButton.addEventListener("click", () => {
         socket.emit("undo-move");
       });
@@ -682,6 +728,7 @@
       });
 
       gameSelect.addEventListener("change", () => {
+        ludoPlayerSettings.hidden = gameSelect.value !== "ludo";
         socket.emit("change-game", gameSelect.value);
       });
 
@@ -720,6 +767,7 @@
         currentBoardWidth = state.boardWidth;
         currentBoardHeight = state.boardHeight;
         gameSelect.value = state.game;
+        updateLudoPlayers(state.ludoPlayers || ["Red", "Blue", "Yellow", "Green"]);
         renderBoard(state.board, state.selectedSquare, state.boardWidth, state.boardHeight, state.ludoLayout || {});
         renderMoveStatus(state);
         renderGameResult(state);

@@ -22,6 +22,23 @@ test("starts with four tokens for each player on a 15 by 15 board", () => {
   assert.equal(game.turn, "Red");
 });
 
+test("uses only the selected player colors and cycles through those players", () => {
+  const game = new LudoGame(["Red", "Yellow"]);
+
+  assert.deepEqual(game.activeColors, ["Red", "Yellow"]);
+  assert.deepEqual([...new Set(game.pieces.map((piece) => piece.color))], ["Red", "Yellow"]);
+  assert.equal(game.pieces.length, 8);
+  assert.equal(game.roll(() => 0).skipped, true);
+  assert.equal(game.turn, "Yellow");
+});
+
+test("requires two to four unique valid player colors", () => {
+  assert.throws(() => new LudoGame(["Red"]), RangeError);
+  assert.throws(() => new LudoGame(["Red", "Red"]), RangeError);
+  assert.throws(() => new LudoGame(["Red", "Blue", "Yellow", "Green", "Red"]), RangeError);
+  assert.throws(() => new LudoGame(["Red", "Purple"]), RangeError);
+});
+
 test("a six brings a token out and gives the player another turn", () => {
   const game = new LudoGame();
 
